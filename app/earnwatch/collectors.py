@@ -106,66 +106,76 @@ HG_API = "https://dashboard.honeygain.com/api"
 _hg_token_cache: dict[str, str] = {}
 
 
-def collect_honeygain(creds: dict) -> list[Result]:
-    """Liefert zwei Werte: normales Honeygain-Guthaben und (falls genutzt) JumpTask-Einnahmen."""
+def _hg_session(creds: dict):
+    """Meldet sich bei Honeygain an und gibt eine get(pfad)-Funktion zurück."""
     email, password = creds.get("email", ""), creds.get("password", "")
     if not email or not password:
-        return [Result("honeygain", None, "Keine Zugangsdaten hinterlegt")]
+        raise CollectError("Keine Zugangsdaten hinterlegt")
     op = _opener()
     hdr = {"Referer": "https://dashboard.honeygain.com/"}
+
+    def login() -> str:
+        st, raw, _ = _request(op, f"{HG_API}/v1/users/tokens", method="POST",
+                              body={"email": email, "password": password}, headers=hdr)
+        if st in (400, 401, 403, 422):
+            raise CollectError("Login abgelehnt – E-Mail/Passwort prüfen (oder 2FA/Captcha aktiv)")
+        if st != 200:
+            raise CollectError(f"Login fehlgeschlagen (HTTP {st})")
+        tok = _json(raw).get("data", {}).get("access_token")
+        if not tok:
+            raise CollectError("Kein Token in der Login-Antwort")
+        return tok
+
+    state = {"token": _hg_token_cache.get(email) or login()}
+
+    def get(path: str):
+        st, raw, _ = _request(op, f"{HG_API}{path}", headers={**hdr, "Authorization": f"Bearer {state['token']}"})
+        if st == 401:
+            state["token"] = login()
+            st, raw, _ = _request(op, f"{HG_API}{path}", headers={**hdr, "Authorization": f"Bearer {state['token']}"})
+        if st == 200:
+            _hg_token_cache[email] = state["token"]
+        return st, raw
+
+    def mode() -> dict:
+        st, raw = get("/v1/users/me")
+        if st != 200:
+            return {}
+        return {"modus": "JumpTask" if _json(raw).get("data", {}).get("jt_toggle") else "Honeygain"}
+
+    return get, mode
+
+
+def collect_honeygain(creds: dict) -> Result:
+    """Normales Honeygain-Guthaben (Auszahlung per PayPal/Krypto ab $20)."""
     try:
-        def login() -> str:
-            st, raw, _ = _request(op, f"{HG_API}/v1/users/tokens", method="POST",
-                                  body={"email": email, "password": password}, headers=hdr)
-            if st in (400, 401, 403, 422):
-                raise CollectError("Login abgelehnt – E-Mail/Passwort prüfen (oder 2FA/Captcha aktiv)")
-            if st != 200:
-                raise CollectError(f"Login fehlgeschlagen (HTTP {st})")
-            tok = _json(raw).get("data", {}).get("access_token")
-            if not tok:
-                raise CollectError("Kein Token in der Login-Antwort")
-            return tok
-
-        token = _hg_token_cache.get(email) or login()
-
-        def get(path: str):
-            nonlocal token
-            st, raw, _ = _request(op, f"{HG_API}{path}", headers={**hdr, "Authorization": f"Bearer {token}"})
-            if st == 401:
-                token = login()
-                st, raw, _ = _request(op, f"{HG_API}{path}", headers={**hdr, "Authorization": f"Bearer {token}"})
-            return st, raw
-
+        get, mode = _hg_session(creds)
         st, raw = get("/v1/users/balances")
         if st != 200:
             raise CollectError(f"Kontostand-Abruf fehlgeschlagen (HTTP {st})")
-        _hg_token_cache[email] = token
         cents = _json(raw).get("data", {}).get("payout", {}).get("usd_cents")
         if cents is None:
             raise CollectError("Feld usd_cents fehlt – API geändert?")
-
-        # JumpTask-Modus: an oder aus?
-        jt_on = None
-        st_me, raw_me = get("/v1/users/me")
-        if st_me == 200:
-            jt_on = bool(_json(raw_me).get("data", {}).get("jt_toggle"))
-        mode = {"modus": "JumpTask" if jt_on else "Honeygain"} if jt_on is not None else {}
-        results = [Result("honeygain", round(float(cents) / 100, 4), info=mode)]
-
-        # JumpTask-Einnahmen (Lebenszeit, in USD-Cent) – wächst nur, Auszahlung läuft über JumpTask
-        st_jt, raw_jt = get("/v1/earnings/jt")
-        if st_jt == 200:
-            d = _json(raw_jt).get("data", {}) or {}
-            jt_cents = float(d.get("total_usd_cents") or 0) + float(d.get("bonus_usd_cents") or 0)
-            jt_credits = float(d.get("total_credits") or 0) + float(d.get("bonus_credits") or 0)
-            results.append(Result("honeygain_jt", round(jt_cents / 100, 4),
-                                  info={**mode, "credits": round(jt_credits, 2)}))
-        elif jt_on:
-            results.append(Result("honeygain_jt", None, f"JumpTask-Abruf fehlgeschlagen (HTTP {st_jt})"))
-        return results
+        return Result("honeygain", round(float(cents) / 100, 4), info=mode())
     except CollectError as e:
-        _hg_token_cache.pop(email, None)
-        return [Result("honeygain", None, str(e))]
+        _hg_token_cache.pop(creds.get("email", ""), None)
+        return Result("honeygain", None, str(e))
+
+
+def collect_honeygain_jt(creds: dict) -> Result:
+    """JumpTask-Einnahmen (Summe aller an JumpTask gesendeten Einnahmen, in USD)."""
+    try:
+        get, mode = _hg_session(creds)
+        st, raw = get("/v1/earnings/jt")
+        if st != 200:
+            raise CollectError(f"JumpTask-Abruf fehlgeschlagen (HTTP {st})")
+        d = _json(raw).get("data", {}) or {}
+        cents = float(d.get("total_usd_cents") or 0) + float(d.get("bonus_usd_cents") or 0)
+        credits = float(d.get("total_credits") or 0) + float(d.get("bonus_credits") or 0)
+        return Result("honeygain_jt", round(cents / 100, 4), info={**mode(), "credits": round(credits, 2)})
+    except CollectError as e:
+        _hg_token_cache.pop(creds.get("email", ""), None)
+        return Result("honeygain_jt", None, str(e))
 
 
 # --- EarnApp --------------------------------------------------------------
@@ -431,9 +441,13 @@ PLATFORMS = {
     },
     "honeygain_jt": {
         "name": "Honeygain (JumpTask)", "color": "#3b82f6", "unit": "USD", "usd": True, "on_drop": "payout",
-        "collect": None, "linked": "honeygain", "lifetime": True, "dashboard": "https://app.jumptask.io/", "min_payout": None,
-        "fields": [],
-        "hint": "Nutzt automatisch den Honeygain-Zugang. Zeigt, was Honeygain im JumpTask-Modus an JumpTask ausgezahlt hat.",
+        "collect": collect_honeygain_jt, "fallback_creds": "honeygain", "lifetime": True,
+        "dashboard": "https://app.jumptask.io/", "min_payout": None,
+        "fields": [
+            {"key": "email", "label": "E-Mail des JumpTask-Kontos (optional)", "type": "email", "required": False},
+            {"key": "password", "label": "Passwort (optional)", "type": "password", "required": False},
+        ],
+        "hint": "Eigener Honeygain-Login für das Konto im JumpTask-Modus. Leer lassen, wenn du nur EIN Honeygain-Konto hast – dann wird der normale Honeygain-Zugang benutzt.",
     },
     "earnapp": {
         "name": "EarnApp", "color": "#3fb68b", "unit": "USD", "usd": True, "on_drop": "payout",

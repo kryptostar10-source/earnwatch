@@ -82,3 +82,4 @@ tfoot th{color:var(--text);font-weight:700;border-bottom:0}
 form.manual{display:flex;gap:8px;margin:10px 0}
 form.manual input{margin:0}
 form.manual button{white-space:nowrap}
+.row{flex-wrap:wrap}.row .badge{white-space:nowrap}

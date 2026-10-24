@@ -155,6 +155,8 @@ async def collect_all() -> list:
             if meta.get("collect") is None:
                 continue  # wird von einer anderen Plattform mit abgerufen (z. B. JumpTask)
             creds = db.load_credentials(pf)
+            if not creds or not any(creds.values()):
+                creds = db.load_credentials(meta["fallback_creds"]) if meta.get("fallback_creds") else None
             if creds is None:
                 continue
             try:
@@ -355,6 +357,12 @@ async def settings_save(request: Request):
             flash(request, "Bitte ausfüllen: " + ", ".join(missing), "err")
         elif what == "honeygain" and "@" not in data["email"]:
             flash(request, "Bitte eine gültige E-Mail eingeben.", "err")
+        elif what == "honeygain_jt" and any(data.values()) and not all(data.values()):
+            flash(request, "Bitte E-Mail UND Passwort eintragen – oder beides leer lassen.", "err")
+        elif not any(data.values()):
+            db.delete_credentials(what)
+            flash(request, f"{meta['name']}: nutzt jetzt den Zugang von {PLATFORMS[meta['fallback_creds']]['name']}."
+                  if meta.get("fallback_creds") else f"{meta['name']}: nichts eingetragen.")
         else:
             db.save_credentials(what, data)
             flash(request, f"{meta['name']}: Zugang verschlüsselt gespeichert.")
