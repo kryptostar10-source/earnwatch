@@ -75,8 +75,39 @@ if [[ "${earn,,}" == j* ]]; then
   setenv COMPOSE_PROFILES "$PROFILES"
 fi
 
+if [ -n "$(grep -E "^COMPOSE_PROFILES=.+" .env | grep -v "=''$" || true)" ]; then
+  say "LAN-Sperre für die Earn-Apps"
+  echo "  Die Earn-Apps leiten fremden Internetverkehr über deinen Anschluss."
+  echo "  Die Sperre verhindert, dass sie Geräte in deinem Heimnetz erreichen (Router, Proxmox, NAS)."
+  read -rp "  LAN-Sperre einrichten? (empfohlen) [J/n] " lg
+  if [[ "${lg,,}" != n* ]]; then
+    cat > /etc/systemd/system/earnwatch-lan-guard.service <<UNIT
+[Unit]
+Description=EarnWatch: Earn-App-Container vom Heimnetz abschotten
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=$DIR/lan-guard.sh apply
+ExecStop=$DIR/lan-guard.sh remove
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+    systemctl daemon-reload && systemctl enable --now earnwatch-lan-guard.service \
+      && echo "  LAN-Sperre aktiv (bleibt auch nach Neustart)" \
+      || echo "  Hinweis: LAN-Sperre konnte nicht aktiviert werden (iptables/systemd fehlt?)"
+  fi
+fi
+
 say "Baue und starte EarnWatch (dauert 1–2 Minuten)"
+# Älteres Earn-App-Netz ohne festes Subnetz? Dann einmal neu anlegen lassen.
+OLDNET=$(docker network inspect earnwatch_earners -f '{{range .IPAM.Config}}{{.Subnet}}{{end}}' 2>/dev/null || true)
+if [ -n "$OLDNET" ] && [ "$OLDNET" != "172.31.250.0/24" ]; then docker compose down; fi
 docker compose up -d --build
+systemctl is-enabled earnwatch-lan-guard.service >/dev/null 2>&1 && systemctl restart earnwatch-lan-guard.service || true
 
 getenv(){ grep -E "^$1=" .env | tail -1 | cut -d= -f2- | sed -e "s/^'//" -e "s/'$//" -e 's/^"//' -e 's/"$//'; }
 EW_IP=$(getenv EW_IP); EW_SETUP_TOKEN=$(getenv EW_SETUP_TOKEN); EARNAPP_UUID=$(getenv EARNAPP_UUID); COMPOSE_PROFILES=$(getenv COMPOSE_PROFILES)

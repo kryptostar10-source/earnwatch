@@ -122,8 +122,11 @@ networks:
           gateway: ${EW_GATEWAY:-192.168.1.1}
   # Internes Netz zwischen Caddy und App (App braucht Internet für die APIs)
   backend: {}
-  # Earn-Apps getrennt vom Dashboard
-  earners: {}
+  # Earn-Apps getrennt vom Dashboard – festes Netz, damit lan-guard.sh das Heimnetz sperren kann
+  earners:
+    ipam:
+      config:
+        - subnet: 172.31.250.0/24
 
 volumes:
   earnwatch_data:

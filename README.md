@@ -123,6 +123,22 @@ docker compose logs -f earnwatch          # Log ansehen (enthält nie Passwörte
 docker compose pull && docker compose up -d --build   # aktualisieren
 ```
 
+**LAN-Sperre für die Earn-Apps:** Honeygain, EarnApp, Pawns und Earn.fm leiten fremden Internetverkehr
+über deinen Anschluss. `install.sh` richtet auf Wunsch eine Firewall-Regel ein (`lan-guard.sh`, als
+systemd-Dienst `earnwatch-lan-guard`), die diesen Containern den Zugriff auf dein Heimnetz verbietet –
+Internet geht weiter. Status prüfen: `sudo /opt/earnwatch/lan-guard.sh status`
+
+**Zertifikatswarnung dauerhaft loswerden (empfohlen):** Statt die Warnung jedes Mal wegzuklicken,
+installiere das Stammzertifikat von Caddy einmal auf deinen Geräten:
+
+```bash
+sudo docker compose exec caddy cat /data/caddy/pki/authorities/local/root.crt > earnwatch-root.crt
+```
+
+Die Datei auf PC/Mac/Handy kopieren und als vertrauenswürdige Zertifizierungsstelle importieren
+(Windows: Doppelklick → „Vertrauenswürdige Stammzertifizierungsstellen“, Mac: Schlüsselbundverwaltung →
+„Immer vertrauen“). Danach zeigt der Browser das Schloss – und eine echte Warnung würde auffallen.
+
 **Hinweis Sicherheit:** Die Zugangsdaten von Grass, EarnApp und Bytelixir sind Login-Tokens.
 Wer sie hat, kommt in dein Konto. EarnWatch speichert sie verschlüsselt und zeigt sie nie wieder an.
 
