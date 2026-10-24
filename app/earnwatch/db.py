@@ -39,6 +39,12 @@ CREATE TABLE IF NOT EXISTS runs (
     message TEXT
 );
 CREATE INDEX IF NOT EXISTS ix_runs ON runs(platform, ts);
+CREATE TABLE IF NOT EXISTS imported_daily (
+    platform TEXT NOT NULL,
+    day TEXT NOT NULL,
+    amount REAL NOT NULL,
+    PRIMARY KEY (platform, day)
+);
 CREATE TABLE IF NOT EXISTS settings (
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL
@@ -218,6 +224,24 @@ def snapshots(since: int = 0) -> list[sqlite3.Row]:
             "SELECT platform, ts, balance, currency FROM snapshots WHERE ts>=? ORDER BY platform, ts",
             (since,),
         ).fetchall()
+
+
+def save_history(platform: str, days: dict) -> None:
+    with conn() as c:
+        c.executemany(
+            "INSERT INTO imported_daily(platform, day, amount) VALUES (?,?,?) "
+            "ON CONFLICT(platform, day) DO UPDATE SET amount=excluded.amount",
+            [(platform, d, float(a)) for d, a in days.items()],
+        )
+
+
+def imported_history() -> dict:
+    with conn() as c:
+        rows = c.execute("SELECT platform, day, amount FROM imported_daily").fetchall()
+    out: dict = {}
+    for r in rows:
+        out.setdefault(r["platform"], {})[r["day"]] = r["amount"]
+    return out
 
 
 def add_run(platform: str, ok: bool, message: str | None) -> None:

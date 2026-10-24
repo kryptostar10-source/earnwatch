@@ -123,6 +123,41 @@ docker compose logs -f earnwatch          # Log ansehen (enthält nie Passwörte
 docker compose pull && docker compose up -d --build   # aktualisieren
 ```
 
+## Benachrichtigungen aufs Handy
+
+Unter *Einstellungen → Benachrichtigungen* einrichten – mit der kostenlosen App **ntfy** (ohne Anmeldung)
+und/oder einem **Telegram**-Bot. Gemeldet werden (einzeln abschaltbar):
+
+- 💰 Auszahlung möglich (Grenze erreicht)
+- ⚠️ Abruf fehlgeschlagen / Login abgelaufen – und ✅ wenn es wieder läuft
+- ⛏️ Duino-Miner offline / wieder online
+- 🔐 neue Anmeldung bei EarnWatch, 🚨 gesperrte Login-Versuche
+- 🔑 Passwort geändert, 🛡️ 2FA ein/aus
+- 📊 Tageszusammenfassung zur Wunsch-Uhrzeit
+
+Das ntfy-Thema ist wie ein Passwort: Wer es kennt, kann mitlesen. EarnWatch schlägt ein zufälliges vor.
+
+## Honeygain-Verlauf
+
+Beim ersten Abruf übernimmt EarnWatch die Tageseinnahmen der letzten 30 Tage direkt von Honeygain
+(normal und JumpTask). Diagramm und Wochen-/Monatswerte sind dadurch sofort gefüllt.
+
+## Backups & automatische Updates
+
+`install.sh` richtet auf Wunsch ein:
+- **jede Nacht um 3:30** ein Backup nach `/var/backups/earnwatch` (die letzten 7 bleiben, nur root lesbar)
+- **jeden Sonntag** ein automatisches Update inkl. Sicherheits-Updates aller Images (vorher wird gesichert)
+
+```bash
+sudo bash /opt/earnwatch/backup.sh                 # Backup jetzt
+sudo bash /opt/earnwatch/restore.sh                # zeigt vorhandene Backups
+sudo bash /opt/earnwatch/restore.sh <datei>        # wiederherstellen
+systemctl list-timers 'earnwatch-*'                # wann läuft was
+```
+
+Tipp: Kopiere ab und zu ein Backup auf einen anderen Rechner/USB-Stick. Es enthält den Schlüssel
+zu deinen gespeicherten Zugangsdaten – also sicher aufbewahren.
+
 ## Als App aufs iPhone
 
 EarnWatch lässt sich wie eine App auf den Home-Bildschirm legen (eigenes Icon, Vollbild, Tab-Leiste unten):

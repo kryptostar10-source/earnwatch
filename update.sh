@@ -4,6 +4,8 @@
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")"
 [ "$(id -u)" -eq 0 ] || { echo "Bitte mit sudo ausführen"; exit 1; }
+echo "==> Sicherheitskopie vor dem Update"
+bash ./backup.sh || echo "   (Backup übersprungen – läuft EarnWatch?)"
 echo "==> Neuer Code von GitHub"
 git pull --ff-only
 echo "==> Aktuelle Images holen (Caddy, Tailscale, Earn-Apps, Python-Basis)"

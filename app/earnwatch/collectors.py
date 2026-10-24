@@ -15,6 +15,7 @@ import ssl
 import urllib.error
 import urllib.parse
 import urllib.request
+import time
 from dataclasses import dataclass, field
 
 log = logging.getLogger("earnwatch.collect")
@@ -32,6 +33,7 @@ class Result:
     price_usd: float | None = None      # Kurs der Einheit in USD (z. B. DUCO)
     info: dict = field(default_factory=dict)   # Zusatzinfos (Miner, Hashrate …)
     new_creds: dict | None = None       # aufgefrischte Cookies, werden verschlüsselt gespeichert
+    history: dict | None = None         # Tageseinnahmen vom Anbieter {"YYYY-MM-DD": betrag}
 
     @property
     def ok(self) -> bool:
@@ -146,6 +148,44 @@ def _hg_session(creds: dict):
     return get, mode
 
 
+_hist_last: dict[str, float] = {}
+
+
+def _hg_history(get, path: str, key: str) -> dict | None:
+    """Tageseinnahmen der letzten ~30 Tage (Credits -> USD), höchstens alle 12 h abrufen."""
+    import datetime as _dt
+    if time.time() - _hist_last.get(key, 0) < 12 * 3600:
+        return None
+    st, raw = get(path)
+    if st != 200:
+        return None
+    try:
+        data = _json(raw)
+    except CollectError:
+        return None
+    if isinstance(data.get("data"), dict):
+        data = data["data"]
+    out = {}
+    for day, v in data.items():
+        try:
+            _dt.date.fromisoformat(day)
+        except (TypeError, ValueError):
+            continue
+        if not isinstance(v, dict):
+            continue
+        tot = v.get("total") if isinstance(v.get("total"), dict) else None
+        if tot and tot.get("credits") is not None:
+            credits = float(tot.get("credits") or 0)
+        else:
+            credits = sum(float((v.get(k) or {}).get("credits") or 0)
+                          for k in ("gathering", "cdn", "referral", "winning", "other", "bonus")
+                          if isinstance(v.get(k), dict))
+        if 0 <= credits < 1e7:
+            out[day] = round(credits / 1000, 5)   # 1.000 Credits = 1 USD
+    _hist_last[key] = time.time()
+    return out or None
+
+
 def collect_honeygain(creds: dict) -> Result:
     """Normales Honeygain-Guthaben (Auszahlung per PayPal/Krypto ab $20)."""
     try:
@@ -156,7 +196,8 @@ def collect_honeygain(creds: dict) -> Result:
         cents = _json(raw).get("data", {}).get("payout", {}).get("usd_cents")
         if cents is None:
             raise CollectError("Feld usd_cents fehlt – API geändert?")
-        return Result("honeygain", round(float(cents) / 100, 4), info=mode())
+        hist = _hg_history(get, "/v1/earnings/stats", "hg:" + creds.get("email", ""))
+        return Result("honeygain", round(float(cents) / 100, 4), info=mode(), history=hist)
     except CollectError as e:
         _hg_token_cache.pop(creds.get("email", ""), None)
         return Result("honeygain", None, str(e))
@@ -172,7 +213,9 @@ def collect_honeygain_jt(creds: dict) -> Result:
         d = _json(raw).get("data", {}) or {}
         cents = float(d.get("total_usd_cents") or 0) + float(d.get("bonus_usd_cents") or 0)
         credits = float(d.get("total_credits") or 0) + float(d.get("bonus_credits") or 0)
-        return Result("honeygain_jt", round(cents / 100, 4), info={**mode(), "credits": round(credits, 2)})
+        hist = _hg_history(get, "/v1/jt-earnings/stats", "jt:" + creds.get("email", ""))
+        return Result("honeygain_jt", round(cents / 100, 4), info={**mode(), "credits": round(credits, 2)},
+                      history=hist)
     except CollectError as e:
         _hg_token_cache.pop(creds.get("email", ""), None)
         return Result("honeygain_jt", None, str(e))

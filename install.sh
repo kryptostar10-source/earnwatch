@@ -118,6 +118,35 @@ UNIT
   fi
 fi
 
+say "Automatik (empfohlen)"
+make_timer(){ # make_timer NAME BESCHREIBUNG BEFEHL ZEITPLAN
+  cat > /etc/systemd/system/$1.service <<UNIT
+[Unit]
+Description=$2
+After=docker.service
+Requires=docker.service
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/env bash $3
+UNIT
+  cat > /etc/systemd/system/$1.timer <<UNIT
+[Unit]
+Description=$2 (Zeitplan)
+[Timer]
+OnCalendar=$4
+RandomizedDelaySec=20min
+Persistent=true
+[Install]
+WantedBy=timers.target
+UNIT
+  systemctl daemon-reload && systemctl enable --now "$1.timer" >/dev/null 2>&1 \
+    && echo "  ✓ $2 ($4)" || echo "  Hinweis: $2 konnte nicht eingerichtet werden"
+}
+read -rp "  Jede Nacht ein Backup machen (7 Tage aufbewahren)? [J/n] " a
+[[ "${a,,}" == n* ]] || make_timer earnwatch-backup "EarnWatch-Backup" "$DIR/backup.sh" "*-*-* 03:30"
+read -rp "  Jeden Sonntag automatisch aktualisieren (inkl. Sicherheits-Updates)? [J/n] " a
+[[ "${a,,}" == n* ]] || make_timer earnwatch-update "EarnWatch-Update" "$DIR/update.sh" "Sun *-*-* 04:15"
+
 say "Baue und starte EarnWatch (dauert 1–2 Minuten)"
 # Älteres Earn-App-Netz ohne festes Subnetz? Dann einmal neu anlegen lassen.
 OLDNET=$(docker network inspect earnwatch_earners -f '{{range .IPAM.Config}}{{.Subnet}}{{end}}' 2>/dev/null || true)

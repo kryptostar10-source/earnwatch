@@ -26,7 +26,7 @@ from starlette.staticfiles import StaticFiles
 from starlette.templating import Jinja2Templates
 from markupsafe import Markup
 
-from . import auth, charts, config, db, stats, totp
+from . import auth, charts, config, db, events, notify, stats, totp
 from .collectors import PLATFORMS
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -190,6 +190,7 @@ async def collect_all() -> list:
     results = []
     async with _collect_lock:
         db.set_setting("last_collect_ts", str(int(time.time())))
+        runs_before = db.last_runs()
         for pf, meta in PLATFORMS.items():
             if meta.get("collect") is None:
                 continue  # wird von einer anderen Plattform mit abgerufen (z. B. JumpTask)
@@ -212,6 +213,9 @@ async def collect_all() -> list:
                     res.balance, res.message = None, "Unplausibler Wert vom Anbieter verworfen"
                 if res.price_usd is not None and not (math.isfinite(res.price_usd) and 0 < res.price_usd < 1e6):
                     res.price_usd = None
+                if res.ok and res.history:
+                    db.save_history(res.platform, res.history)
+                events.after_result(res, rmeta, runs_before.get(res.platform))
                 if res.ok:
                     db.add_snapshot(res.platform, res.balance, rmeta["unit"])
                     db.add_run(res.platform, True, None)
@@ -286,6 +290,9 @@ async def login(request: Request):
         if form is None:
             return forbidden()
         if wait := auth.throttle.try_acquire(ip):
+            notify.send("security", "🚨 Viele fehlgeschlagene Logins",
+                        f"Von IP {ip} wurde der Login gesperrt (zu viele falsche Passwörter).",
+                        priority=4, tags=["rotating_light"], dedupe=f"lock:{ip}", dedupe_seconds=900)
             return render(request, "login.html", {"error": f"Zu viele Fehlversuche. Bitte {wait//60+1} Min. warten."}, 429)
         user = db.get_user_by_name(form.get("username", "").strip())
         pw = form.get("password", "")
@@ -302,6 +309,9 @@ async def login(request: Request):
             request.session.update({"uid": user["id"], "ver": user["session_ver"], "since": int(time.time()),
                                     "long": form.get("remember") == "1"})
             log.info("Login '%s' von %s", user["username"], ip)
+            notify.send("login", "🔐 Neue Anmeldung bei EarnWatch",
+                        f"Benutzer {user['username']} · {notify.short_agent(request.headers.get('user-agent', ''))} · IP {ip}",
+                        priority=3, tags=["lock"], dedupe=f"login:{ip}", dedupe_seconds=60)
             return redirect("/")
         log.warning("Fehlgeschlagener Login von %s", ip)
         error, status = "Benutzername oder Passwort falsch.", 401
@@ -360,6 +370,9 @@ async def login_2fa(request: Request):
             request.session.update({"uid": user["id"], "ver": user["session_ver"], "since": int(time.time()),
                                     "long": long_})
             log.info("Login '%s' (2FA) von %s", user["username"], ip)
+            notify.send("login", "🔐 Neue Anmeldung bei EarnWatch",
+                        f"Benutzer {user['username']} (mit 2FA) · {notify.short_agent(request.headers.get('user-agent', ''))} · IP {ip}",
+                        priority=3, tags=["lock"], dedupe=f"login:{ip}", dedupe_seconds=60)
             left = len(db.recovery_hashes(db.get_user(user["id"])))
             if left <= 2:
                 flash(request, f"Nur noch {left} Wiederherstellungscode(s) übrig – in den Einstellungen neue erzeugen.", "warn")
@@ -395,6 +408,7 @@ async def twofa_setup(request: Request):
                 request.session["ver"] = fresh["session_ver"]  # diese Sitzung bleibt, alle anderen fliegen raus
                 auth.throttle.success(f"setup2fa:{user['id']}")
                 log.info("2FA aktiviert für '%s'", user["username"])
+                notify.send("security", "🛡️ 2FA eingeschaltet", f"Für {user['username']} ist die Zwei-Faktor-Anmeldung jetzt aktiv.", tags=["shield"])
                 return render(request, "twofa_codes.html", {"user": fresh, "codes": codes, "fresh": True})
             error = "Der Code passt nicht. Uhrzeit am Handy prüfen und den aktuellen Code eingeben."
     svg = totp.qr_svg(totp.otpauth_uri(secret, user["username"]))
@@ -424,6 +438,7 @@ async def twofa_manage(request: Request):
         db.disable_totp(user["id"])
         request.session["ver"] = db.get_user(user["id"])["session_ver"]
         log.warning("2FA deaktiviert für '%s'", user["username"])
+        notify.send("security", "⚠️ 2FA ausgeschaltet", f"Für {user['username']} wurde die Zwei-Faktor-Anmeldung ausgeschaltet. Warst du das nicht? Sofort Passwort ändern!", priority=5, tags=["warning"])
         flash(request, "Zwei-Faktor-Anmeldung ausgeschaltet.", "warn")
         return redirect("/settings#2fa")
     if action == "recovery":
@@ -512,6 +527,9 @@ async def settings_page(request: Request):
     return render(request, "settings.html", {
         "user": user,
         "twofa": bool(db.totp_secret(user)),
+        "ncfg": notify.config(),
+        "nevents": notify.EVENTS,
+        "topic_suggestion": notify.random_topic(),
         "recovery_left": len(db.recovery_hashes(user)),
         "platforms": PLATFORMS,
         "configured": conf,
@@ -529,6 +547,32 @@ async def settings_save(request: Request):
     if form is None:
         return forbidden()
     what = request.path_params["what"]
+    if what == "notify":
+        cfg, err = notify.validate(form)
+        if err:
+            flash(request, err, "err")
+        else:
+            db.save_credentials("_notify", cfg)
+            evs = [e for e in notify.EVENTS if form.get("ev_" + e) == "1"]
+            db.set_setting("notify_events", json.dumps(evs))
+            try:
+                h = int(form.get("summary_hour", "21"))
+                db.set_setting("notify_summary_hour", str(h if 0 <= h <= 23 else 21))
+            except ValueError:
+                pass
+            flash(request, "Benachrichtigungen gespeichert." + ("" if notify.enabled() else " (Noch kein Dienst eingetragen.)"))
+        return redirect("/settings#notify")
+    if what == "notifytest":
+        if not notify.enabled():
+            flash(request, "Erst ntfy oder Telegram eintragen und speichern.", "warn")
+            return redirect("/settings#notify")
+        if wait := auth.throttle.try_acquire(f"notifytest:{user['id']}", global_=False):
+            flash(request, f"Bitte {wait//60+1} Min. warten.", "warn")
+            return redirect("/settings#notify")
+        errs = await run_in_threadpool(lambda: notify.send("test", "✅ EarnWatch-Test",
+                                       "Benachrichtigungen funktionieren!", tags=["tada"], wait=True))
+        flash(request, ("Fehler: " + "; ".join(errs)) if errs else "Test gesendet – schau aufs Handy.", "err" if errs else "ok")
+        return redirect("/settings#notify")
     if what in PLATFORMS and PLATFORMS[what].get("manual"):
         meta = PLATFORMS[what]
         try:
@@ -597,6 +641,7 @@ async def settings_save(request: Request):
             flash(request, problem, "err")
         else:
             db.set_password(user["id"], await run_in_threadpool(auth.hash_password, new))
+            notify.send("security", "🔑 Passwort geändert", f"Das EarnWatch-Passwort von {user['username']} wurde geändert. Alle Sitzungen wurden beendet.", priority=4, tags=["key"])
             request.session.clear()
             flash(request, "Passwort geändert – bitte neu anmelden. Alle anderen Sitzungen wurden beendet.")
             return redirect("/login")
@@ -628,8 +673,10 @@ async def lifespan(app):
         else:
             log.warning("Noch kein Konto angelegt. Einrichtungs-Token: %s", config.setup_token())
     task = asyncio.create_task(scheduler())
+    task2 = asyncio.create_task(events.summary_loop())
     yield
     task.cancel()
+    task2.cancel()
 
 
 routes = [

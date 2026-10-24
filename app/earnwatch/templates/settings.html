@@ -85,6 +85,53 @@
 </section>
 </div>
 
+<section class="card setcard" id="notify">
+  <header>
+    <h2>Benachrichtigungen aufs Handy</h2>
+    {% if ncfg.ntfy_topic or (ncfg.tg_token and ncfg.tg_chat) %}<span class="pill ok">aktiv</span>{% else %}<span class="pill dim">aus</span>{% endif %}
+  </header>
+  <form method="post" action="/settings/notify" autocomplete="off">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <div class="grid2">
+      <div>
+        <h3 class="sub">ntfy <span class="muted small">(empfohlen, kostenlos, ohne Anmeldung)</span></h3>
+        <ol class="howto">
+          <li>App <b>„ntfy“</b> aus dem App Store installieren</li>
+          <li>Unten das Thema speichern, dann in der App <b>„+“</b> → genau dieses Thema abonnieren</li>
+        </ol>
+        <label>Thema (geheim halten wie ein Passwort)<input name="ntfy_topic" value="{{ ncfg.ntfy_topic or topic_suggestion }}" maxlength="64" spellcheck="false" class="mono"></label>
+        <label>Server<input name="ntfy_server" value="{{ ncfg.ntfy_server }}" maxlength="200" spellcheck="false"></label>
+        <label>Zugangstoken (optional, nur bei eigenem ntfy-Server){% if ncfg.ntfy_token %} · <span class="pill ok">gespeichert</span>{% endif %}
+          <input name="ntfy_token" type="password" maxlength="200" autocomplete="new-password" placeholder="{{ 'unverändert lassen' if ncfg.ntfy_token else '' }}"></label>
+        {% if ncfg.ntfy_token %}<label class="check"><input type="checkbox" name="ntfy_token_clear" value="1"> Token löschen</label>{% endif %}
+      </div>
+      <div>
+        <h3 class="sub">Telegram <span class="muted small">(optional, zusätzlich)</span></h3>
+        <ol class="howto">
+          <li>In Telegram <b>@BotFather</b> → /newbot → Bot-Token kopieren</li>
+          <li>Dem neuen Bot einmal schreiben, dann bei <b>@userinfobot</b> deine Chat-ID holen</li>
+        </ol>
+        <label>Bot-Token{% if ncfg.tg_token %} · <span class="pill ok">gespeichert</span>{% endif %}
+          <input name="tg_token" type="password" maxlength="100" autocomplete="new-password" placeholder="{{ 'unverändert lassen' if ncfg.tg_token else '123456:ABC…' }}"></label>
+        <label>Chat-ID<input name="tg_chat" value="{{ ncfg.tg_chat or '' }}" inputmode="numeric" maxlength="20"></label>
+        {% if ncfg.tg_token %}<label class="check"><input type="checkbox" name="tg_clear" value="1"> Telegram entfernen</label>{% endif %}
+      </div>
+    </div>
+    <h3 class="sub">Was soll gemeldet werden?</h3>
+    <div class="checks">
+      {% for key, label in nevents.items() %}
+      <label class="check"><input type="checkbox" name="ev_{{ key }}" value="1" {% if key in ncfg.events %}checked{% endif %}> {{ label }}</label>
+      {% endfor %}
+    </div>
+    <label class="inline-sel">Tageszusammenfassung um
+      <select name="summary_hour">{% for h in range(24) %}<option value="{{ h }}" {% if h == ncfg.summary_hour %}selected{% endif %}>{{ '%02d'|format(h) }}:00</option>{% endfor %}</select> Uhr</label>
+    <div class="actions">
+      <button class="btn primary sm">Speichern</button>
+      <button class="btn sm" formaction="/settings/notifytest">Test senden</button>
+    </div>
+  </form>
+</section>
+
 <section class="card">
   <div class="cardhead"><h2>Letzte Abrufe</h2></div>
   <div class="tablewrap">

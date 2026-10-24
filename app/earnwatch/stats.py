@@ -94,6 +94,25 @@ def compute(view: str = "day", period: str = "week") -> dict:
             fd = day_of(pts[0][0])
             first_day = fd if first_day is None or fd < first_day else first_day
 
+    # Vom Anbieter gelieferte Tageswerte (z. B. Honeygain, letzte 30 Tage) einrechnen:
+    # vor dem ersten eigenen Messwert ersetzen sie die fehlenden Daten, am ersten Messtag
+    # gilt der größere Wert (unser erster Tag ist ja nur teilweise gemessen).
+    for pf, days in db.imported_history().items():
+        pts = by_pf.get(pf, [])
+        first = day_of(pts[0][0]) if pts else today + dt.timedelta(days=1)
+        d = daily.setdefault(pf, defaultdict(float))
+        for ds, amount in days.items():
+            try:
+                day = dt.date.fromisoformat(ds)
+            except ValueError:
+                continue
+            if day < first:
+                d[day] = amount
+            elif day == first:
+                d[day] = max(d.get(day, 0.0), amount)
+            if first_day is None or day < first_day:
+                first_day = day
+
     def period_sum(pf: str, start: dt.date, end: dt.date) -> float:
         return sum(v for k, v in daily.get(pf, {}).items() if start <= k < end)
 
