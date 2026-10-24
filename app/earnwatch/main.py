@@ -10,6 +10,7 @@ import io
 import json
 import logging
 import math
+import mimetypes
 import time
 from pathlib import Path
 from urllib.parse import urlparse
@@ -30,6 +31,9 @@ from .collectors import PLATFORMS
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 log = logging.getLogger("earnwatch")
+
+mimetypes.add_type("application/manifest+json", ".webmanifest")
+mimetypes.add_type("font/woff", ".woff")
 
 BASE = Path(__file__).parent
 templates = Jinja2Templates(directory=str(BASE / "templates"))
@@ -64,7 +68,7 @@ _last_manual = 0.0
 # --------------------------------------------------------------------------
 CSP = (
     "default-src 'none'; style-src 'self'; img-src 'self'; font-src 'self'; script-src 'none'; "
-    "form-action 'self'; frame-ancestors 'none'; base-uri 'none'"
+    "form-action 'self'; manifest-src 'self'; frame-ancestors 'none'; base-uri 'none'"
 )
 
 
@@ -127,7 +131,8 @@ def current_user(request: Request):
     if not user or request.session.get("ver") != user["session_ver"]:
         request.session.clear()
         return None
-    if time.time() - request.session.get("since", 0) > config.SESSION_HOURS * 3600:
+    limit = config.REMEMBER_DAYS * 86400 if request.session.get("long") else config.SESSION_HOURS * 3600
+    if time.time() - request.session.get("since", 0) > limit:
         request.session.clear()
         return None
     return user
@@ -287,10 +292,11 @@ async def login(request: Request):
             if db.totp_secret(user):
                 # Passwort stimmt – jetzt noch der zweite Faktor (max. 5 Minuten Zeit)
                 request.session.update({"pre_uid": user["id"], "pre_ver": user["session_ver"],
-                                        "pre_ts": int(time.time())})
+                                        "pre_ts": int(time.time()), "pre_long": form.get("remember") == "1"})
                 return redirect("/login/2fa")
             auth.throttle.success(ip)
-            request.session.update({"uid": user["id"], "ver": user["session_ver"], "since": int(time.time())})
+            request.session.update({"uid": user["id"], "ver": user["session_ver"], "since": int(time.time()),
+                                    "long": form.get("remember") == "1"})
             log.info("Login '%s' von %s", user["username"], ip)
             return redirect("/")
         log.warning("Fehlgeschlagener Login von %s", ip)
@@ -345,8 +351,10 @@ async def login_2fa(request: Request):
         if _check_second_factor(user, form.get("code", "")):
             auth.throttle.success(ip)
             auth.throttle.success(f"user2fa:{user['id']}")
+            long_ = bool(request.session.get("pre_long"))
             request.session.clear()
-            request.session.update({"uid": user["id"], "ver": user["session_ver"], "since": int(time.time())})
+            request.session.update({"uid": user["id"], "ver": user["session_ver"], "since": int(time.time()),
+                                    "long": long_})
             log.info("Login '%s' (2FA) von %s", user["username"], ip)
             left = len(db.recovery_hashes(db.get_user(user["id"])))
             if left <= 2:
@@ -645,7 +653,7 @@ app = Starlette(
             SessionMiddleware,
             secret_key=config.session_secret(),
             session_cookie="ew_session",
-            max_age=config.SESSION_HOURS * 3600,
+            max_age=max(config.SESSION_HOURS * 3600, config.REMEMBER_DAYS * 86400),
             same_site="strict",
             https_only=config.SECURE_COOKIES,
         ),

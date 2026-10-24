@@ -123,6 +123,13 @@ docker compose logs -f earnwatch          # Log ansehen (enthält nie Passwörte
 docker compose pull && docker compose up -d --build   # aktualisieren
 ```
 
+## Als App aufs iPhone
+
+EarnWatch lässt sich wie eine App auf den Home-Bildschirm legen (eigenes Icon, Vollbild, Tab-Leiste unten):
+Seite in **Safari** öffnen → Teilen-Knopf → **„Zum Home-Bildschirm“**. Beim Login „30 Tage angemeldet bleiben“
+anhaken, dann musst du dich nicht ständig neu einloggen. Unterwegs zusammen mit Tailscale (siehe unten) nutzen.
+Tipp: Am besten über die Tailscale-Adresse hinzufügen – die hat ein echtes Zertifikat.
+
 ## Von unterwegs: nur EarnWatch über Tailscale
 
 EarnWatch kann einen eigenen kleinen Tailscale-Container mitstarten. Dann ist **ausschließlich diese Seite**

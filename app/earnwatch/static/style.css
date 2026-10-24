@@ -211,3 +211,27 @@ main.auth{min-height:100vh;display:grid;place-items:center;padding:16px}
 .codes{list-style:none;display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px;padding:0;margin:18px 0 22px}
 .codes li{background:var(--ink);border:1px solid var(--line2);border-radius:10px;padding:12px;text-align:center;font-size:16px;letter-spacing:.04em}
 a.btn{text-decoration:none}
+
+/* Checkbox */
+label.check{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--soft);cursor:pointer}
+label.check input{width:20px;height:20px;margin:0;accent-color:var(--accent);flex:none}
+/* iPhone als App (Home-Bildschirm): Platz für Notch & Home-Leiste */
+@supports (padding:max(0px)){
+  .side{padding-top:max(28px,env(safe-area-inset-top));padding-left:max(18px,env(safe-area-inset-left))}
+  .content{padding-bottom:max(64px,env(safe-area-inset-bottom));padding-right:max(16px,env(safe-area-inset-right))}
+  main.auth{padding-top:max(16px,env(safe-area-inset-top));padding-bottom:max(16px,env(safe-area-inset-bottom))}
+  @media (max-width:760px){.side{padding-top:max(14px,env(safe-area-inset-top))}}
+}
+
+/* Handy: App-artige Tab-Leiste unten */
+@media (max-width:760px){
+  .side{position:sticky;top:0;z-index:5;padding:10px 16px;gap:8px;background:rgba(10,13,17,.97)}
+  .side .brand small{display:none}
+  .nav{position:fixed;left:0;right:0;bottom:0;z-index:10;display:grid;grid-template-columns:repeat(5,1fr);gap:0;
+    background:rgba(10,13,17,.98);border-top:1px solid var(--line);padding:6px 6px max(6px,env(safe-area-inset-bottom))}
+  .nav a,.nav button{flex-direction:column;justify-content:center;gap:3px;height:54px;padding:0 2px;font-size:10px;
+    border-radius:12px;width:100%;text-align:center}
+  .nav form{display:contents}
+  .nav svg{width:22px;height:22px}
+  .content{padding-bottom:calc(96px + env(safe-area-inset-bottom))}
+}

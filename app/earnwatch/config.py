@@ -15,6 +15,7 @@ DB_PATH = DATA_DIR / "earnwatch.db"
 SECURE_COOKIES = os.environ.get("EW_SECURE_COOKIES", "true").lower() in ("1", "true", "yes")
 INTERVAL_MIN_DEFAULT = int(os.environ.get("EW_INTERVAL_MIN", "60"))
 SESSION_HOURS = int(os.environ.get("EW_SESSION_HOURS", "12"))
+REMEMBER_DAYS = int(os.environ.get("EW_REMEMBER_DAYS", "30"))  # "Angemeldet bleiben"
 TZ = os.environ.get("TZ", "Europe/Berlin")
 
 
