@@ -77,3 +77,4 @@ table.periods td small.eur{display:block}
 tfoot th{color:var(--text);font-weight:700;border-bottom:0}
 .kpis{grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}
 .platforms .card{margin-bottom:0}.platforms{margin-bottom:16px}
+.dot[data-pf=honeygain_jt]{background:#3b82f6}

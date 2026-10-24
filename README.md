@@ -3,7 +3,7 @@
 Ein schlankes Dashboard für deinen Proxmox-Docker-Host mit **eigener IP im Heimnetz**,
 **HTTPS** und **Login**. Es ruft regelmäßig deine Kontostände ab bei
 
-- **Honeygain** (USD)
+- **Honeygain** (USD), auch im **JumpTask-Modus** – dann erscheint automatisch eine zweite Karte „Honeygain (JumpTask)“
 - **EarnApp** (USD)
 - **Grass** (Punkte – haben keinen festen Dollarwert und werden separat gezeigt)
 - **Bytelixir** (USD)

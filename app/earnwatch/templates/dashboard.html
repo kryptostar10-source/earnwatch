@@ -38,14 +38,16 @@
     </header>
     {% if p.configured %}
       <div class="bal">{{ amount(p.balance, p.unit) }}</div>
+      {% if p.lifetime %}<div class="muted small">insgesamt an JumpTask gesendet</div>{% endif %}
       {% if p.unit != 'USD' and p.fac and p.balance is not none %}<div class="muted small">≈ {{ money(p.balance * p.fac) }} (Kurs {{ '%.6f'|format(p.fac) }} $/{{ p.unit }})</div>{% endif %}
-      {% if p.progress is not none %}
+      {% if p.progress is not none and p.info.modus != 'JumpTask' %}
       <div class="progress">
         <progress max="1" value="{{ p.progress }}"></progress>
         <span>{{ '%d'|format(p.progress*100) }} % bis zur Auszahlung ({{ money(p.min_payout) }})</span>
       </div>
       {% endif %}
       {% if p.info.miner is defined %}<p class="small">⛏ {{ p.info.miner }} Miner aktiv · {{ '%.1f'|format(p.info.hashrate/1000) }} kH/s</p>{% endif %}
+      {% if p.info.modus is defined %}<p class="small">Modus: <strong>{{ p.info.modus }}</strong>{% if p.info.credits is defined %} · {{ '{:,.0f}'.format(p.info.credits) }} Credits gesamt{% endif %}</p>{% endif %}
       {% if p.info.art is defined %}<p class="small muted">Punkte {{ p.info.art }}{% if p.info.geraete is defined %} · {{ p.info.geraete }} Gerät(e){% endif %}</p>{% endif %}
       <dl>
         <div><dt>Heute</dt><dd>{{ amount(p.today, p.unit) }}</dd></div>

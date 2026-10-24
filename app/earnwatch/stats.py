@@ -116,9 +116,10 @@ def compute(view: str = "day") -> dict:
         bal = pts[-1][1] if pts else None
         p = {
             "id": pf, "name": meta["name"], "color": meta["color"], "unit": meta["unit"],
-            "dashboard": meta["dashboard"], "configured": pf in configured,
+            "dashboard": meta["dashboard"],
+            "configured": pf in configured or (meta.get("linked") in configured and bool(pts)),
             "balance": bal, "last_ts": pts[-1][0] if pts else None,
-            "fac": fac, "run": runs.get(pf), "min_payout": meta["min_payout"],
+            "fac": fac, "run": runs.get(pf), "lifetime": bool(meta.get("lifetime")), "min_payout": meta["min_payout"],
             "all": sum(daily.get(pf, {}).values()),
             "paid_out": sum(x["amount"] for x in payouts if x["platform"] == pf),
         }
@@ -131,7 +132,8 @@ def compute(view: str = "day") -> dict:
         except ValueError:
             p["info"] = {}
         if fac is not None and p["configured"]:
-            totals["balance"] += (bal or 0) * fac
+            if not meta.get("lifetime"):  # JumpTask: Summe aller Einnahmen, kein Guthaben
+                totals["balance"] += (bal or 0) * fac
             for k in ("today", "week", "month", "year", "all", "forecast"):
                 totals[k] += p[k] * fac
         platforms.append(p)

@@ -134,28 +134,32 @@ async def collect_all() -> list:
     results = []
     async with _collect_lock:
         for pf, meta in PLATFORMS.items():
+            if meta.get("collect") is None:
+                continue  # wird von einer anderen Plattform mit abgerufen (z. B. JumpTask)
             creds = db.load_credentials(pf)
             if creds is None:
                 continue
             try:
-                res = await run_in_threadpool(meta["collect"], creds)
+                out = await run_in_threadpool(meta["collect"], creds)
             except Exception:  # Sicherheitsnetz: nie Details (evtl. Geheimnisse) loggen
                 log.error("%s: unerwarteter Fehler im Abruf", meta["name"])
                 db.add_run(pf, False, "Unerwarteter Fehler beim Abruf")
                 continue
-            if res.ok:
-                db.add_snapshot(pf, res.balance, meta["unit"])
-                db.add_run(pf, True, None)
-                if res.price_usd:
-                    db.set_setting(f"price_{pf}", str(res.price_usd))
-                db.set_setting(f"info_{pf}", json.dumps(res.info))
-                if res.new_creds:
-                    db.save_credentials(pf, res.new_creds)
-                log.info("%s: Stand %.6f %s", meta["name"], res.balance, meta["unit"])
-            else:
-                db.add_run(pf, False, res.message)
-                log.warning("%s: %s", meta["name"], res.message)
-            results.append(res)
+            for res in (out if isinstance(out, list) else [out]):
+                rmeta = PLATFORMS[res.platform]
+                if res.ok:
+                    db.add_snapshot(res.platform, res.balance, rmeta["unit"])
+                    db.add_run(res.platform, True, None)
+                    if res.price_usd:
+                        db.set_setting(f"price_{res.platform}", str(res.price_usd))
+                    db.set_setting(f"info_{res.platform}", json.dumps(res.info))
+                    if res.new_creds:
+                        db.save_credentials(res.platform, res.new_creds)
+                    log.info("%s: Stand %.6f %s", rmeta["name"], res.balance, rmeta["unit"])
+                else:
+                    db.add_run(res.platform, False, res.message)
+                    log.warning("%s: %s", rmeta["name"], res.message)
+                results.append(res)
     return results
 
 

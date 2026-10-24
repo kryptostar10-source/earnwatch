@@ -86,10 +86,11 @@ HG_API = "https://dashboard.honeygain.com/api"
 _hg_token_cache: dict[str, str] = {}
 
 
-def collect_honeygain(creds: dict) -> Result:
+def collect_honeygain(creds: dict) -> list[Result]:
+    """Liefert zwei Werte: normales Honeygain-Guthaben und (falls genutzt) JumpTask-Einnahmen."""
     email, password = creds.get("email", ""), creds.get("password", "")
     if not email or not password:
-        return Result("honeygain", None, "Keine Zugangsdaten hinterlegt")
+        return [Result("honeygain", None, "Keine Zugangsdaten hinterlegt")]
     op = _opener()
     hdr = {"Referer": "https://dashboard.honeygain.com/"}
     try:
@@ -106,22 +107,45 @@ def collect_honeygain(creds: dict) -> Result:
             return tok
 
         token = _hg_token_cache.get(email) or login()
-        st, raw, _ = _request(op, f"{HG_API}/v1/users/balances",
-                              headers={**hdr, "Authorization": f"Bearer {token}"})
-        if st == 401:
-            token = login()
-            st, raw, _ = _request(op, f"{HG_API}/v1/users/balances",
-                                  headers={**hdr, "Authorization": f"Bearer {token}"})
+
+        def get(path: str):
+            nonlocal token
+            st, raw, _ = _request(op, f"{HG_API}{path}", headers={**hdr, "Authorization": f"Bearer {token}"})
+            if st == 401:
+                token = login()
+                st, raw, _ = _request(op, f"{HG_API}{path}", headers={**hdr, "Authorization": f"Bearer {token}"})
+            return st, raw
+
+        st, raw = get("/v1/users/balances")
         if st != 200:
             raise CollectError(f"Kontostand-Abruf fehlgeschlagen (HTTP {st})")
         _hg_token_cache[email] = token
         cents = _json(raw).get("data", {}).get("payout", {}).get("usd_cents")
         if cents is None:
             raise CollectError("Feld usd_cents fehlt – API geändert?")
-        return Result("honeygain", round(float(cents) / 100, 4))
+
+        # JumpTask-Modus: an oder aus?
+        jt_on = None
+        st_me, raw_me = get("/v1/users/me")
+        if st_me == 200:
+            jt_on = bool(_json(raw_me).get("data", {}).get("jt_toggle"))
+        mode = {"modus": "JumpTask" if jt_on else "Honeygain"} if jt_on is not None else {}
+        results = [Result("honeygain", round(float(cents) / 100, 4), info=mode)]
+
+        # JumpTask-Einnahmen (Lebenszeit, in USD-Cent) – wächst nur, Auszahlung läuft über JumpTask
+        st_jt, raw_jt = get("/v1/earnings/jt")
+        if st_jt == 200:
+            d = _json(raw_jt).get("data", {}) or {}
+            jt_cents = float(d.get("total_usd_cents") or 0) + float(d.get("bonus_usd_cents") or 0)
+            jt_credits = float(d.get("total_credits") or 0) + float(d.get("bonus_credits") or 0)
+            results.append(Result("honeygain_jt", round(jt_cents / 100, 4),
+                                  info={**mode, "credits": round(jt_credits, 2)}))
+        elif jt_on:
+            results.append(Result("honeygain_jt", None, f"JumpTask-Abruf fehlgeschlagen (HTTP {st_jt})"))
+        return results
     except CollectError as e:
         _hg_token_cache.pop(email, None)
-        return Result("honeygain", None, str(e))
+        return [Result("honeygain", None, str(e))]
 
 
 # --- EarnApp --------------------------------------------------------------
@@ -300,6 +324,12 @@ PLATFORMS = {
             {"key": "password", "label": "Passwort", "type": "password", "required": True},
         ],
         "hint": "Gleiche Daten wie auf dashboard.honeygain.com. Bei Google/Apple-Login vorher ein Passwort setzen.",
+    },
+    "honeygain_jt": {
+        "name": "Honeygain (JumpTask)", "color": "#3b82f6", "unit": "USD", "usd": True, "on_drop": "payout",
+        "collect": None, "linked": "honeygain", "lifetime": True, "dashboard": "https://app.jumptask.io/", "min_payout": None,
+        "fields": [],
+        "hint": "Nutzt automatisch den Honeygain-Zugang. Zeigt, was Honeygain im JumpTask-Modus an JumpTask ausgezahlt hat.",
     },
     "earnapp": {
         "name": "EarnApp", "color": "#3fb68b", "unit": "USD", "usd": True, "on_drop": "payout",

@@ -5,7 +5,7 @@
 <p class="muted">Zugangsdaten werden verschlüsselt gespeichert und nie wieder angezeigt. Zum Ändern einfach neu eingeben.</p>
 
 <div class="grid2">
-{% for pf, meta in platforms.items() %}
+{% for pf, meta in platforms.items() if meta.fields %}
 <section class="card" id="{{ pf }}">
   <header class="row"><span class="dot" data-pf="{{ pf }}"></span><h2>{{ meta.name }}</h2>
     {% if pf in configured %}<span class="badge ok">gespeichert</span>{% endif %}</header>
