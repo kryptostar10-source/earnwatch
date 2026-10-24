@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}Einrichtung · EarnWatch{% endblock %}
+{% block mainclass %}auth{% endblock %}
+{% block content %}
+<form method="post" class="card authcard">
+  <div class="brand big"><img src="/static/icon.svg" alt="" width="30" height="30"> EarnWatch einrichten</div>
+  <p class="muted">Lege dein Admin-Konto an. Das Einrichtungs-Token steht in deiner <code>.env</code>
+  (<code>EW_SETUP_TOKEN</code>) bzw. im Log: <code>docker logs earnwatch</code>.</p>
+  {% if error %}<div class="flash err">{{ error }}</div>{% endif %}
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <label>Einrichtungs-Token<input name="token" required autocomplete="off" maxlength="200"></label>
+  <label>Benutzername<input name="username" required autocomplete="username" maxlength="32" pattern="[A-Za-z0-9]{3,32}"></label>
+  <label>Passwort (mind. 12 Zeichen)<input name="password" type="password" required minlength="12" maxlength="256" autocomplete="new-password"></label>
+  <label>Passwort wiederholen<input name="password2" type="password" required minlength="12" maxlength="256" autocomplete="new-password"></label>
+  <button class="primary">Konto anlegen</button>
+</form>
+{% endblock %}

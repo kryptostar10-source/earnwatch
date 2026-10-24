@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}Anmelden · EarnWatch{% endblock %}
+{% block mainclass %}auth{% endblock %}
+{% block content %}
+<form method="post" class="card authcard" autocomplete="on">
+  <div class="brand big"><img src="/static/icon.svg" alt="" width="30" height="30"> EarnWatch</div>
+  <p class="muted">Bitte anmelden.</p>
+  {% if error %}<div class="flash err">{{ error }}</div>{% endif %}
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <label>Benutzername<input name="username" required autocomplete="username" maxlength="32" autofocus></label>
+  <label>Passwort<input name="password" type="password" required autocomplete="current-password" maxlength="256"></label>
+  <button class="primary">Anmelden</button>
+</form>
+{% endblock %}

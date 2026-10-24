@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}Einstellungen · EarnWatch{% endblock %}
+{% block content %}
+<h1>Einstellungen</h1>
+<p class="muted">Zugangsdaten werden verschlüsselt gespeichert und nie wieder angezeigt. Zum Ändern einfach neu eingeben.</p>
+
+<div class="grid2">
+{% for pf, meta in platforms.items() %}
+<section class="card" id="{{ pf }}">
+  <header class="row"><span class="dot" data-pf="{{ pf }}"></span><h2>{{ meta.name }}</h2>
+    {% if pf in configured %}<span class="badge ok">gespeichert</span>{% endif %}</header>
+  <form method="post" action="/settings/{{ pf }}" autocomplete="off">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    {% for f in meta.fields %}
+    <label>{{ f.label }}<input name="{{ f.key }}" type="{{ f.type }}" {% if f.required %}required{% endif %} maxlength="6000" {% if f.type == 'password' %}autocomplete="new-password"{% endif %} spellcheck="false"></label>
+    {% endfor %}
+    <button class="primary">Speichern</button>
+  </form>
+  {% if pf in configured %}
+  <form method="post" action="/settings/delete" class="inline">
+    <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="platform" value="{{ pf }}">
+    <button class="danger">Zugang löschen</button>
+  </form>{% endif %}
+  <p class="small muted">{{ meta.hint }}</p>
+</section>
+{% endfor %}
+</div>
+
+<div class="grid2">
+<section class="card">
+  <h2>Allgemein</h2>
+  <form method="post" action="/settings/general">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <label>Abruf-Intervall (Minuten, 15–1440)<input name="interval" type="number" min="15" max="1440" value="{{ interval }}"></label>
+    <label>USD→EUR-Kurs (leer = nur USD)<input name="eur_rate" inputmode="decimal" value="{{ eur_rate if eur_rate not in ('', '0') else '' }}" placeholder="z. B. 0,92"></label>
+    <button class="primary">Speichern</button>
+  </form>
+</section>
+
+<section class="card">
+  <h2>Passwort ändern</h2>
+  <form method="post" action="/settings/password">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <label>Altes Passwort<input name="old" type="password" required autocomplete="current-password"></label>
+    <label>Neues Passwort (mind. 12 Zeichen)<input name="new" type="password" required minlength="12" autocomplete="new-password"></label>
+    <label>Neues Passwort wiederholen<input name="new2" type="password" required minlength="12" autocomplete="new-password"></label>
+    <button class="primary">Ändern</button>
+  </form>
+</section>
+</div>
+
+<section class="card">
+  <h2>Letzte Abrufe</h2>
+  <table>
+    <thead><tr><th>Plattform</th><th>Zeit</th><th>Status</th></tr></thead>
+    <tbody>
+    {% for pf, meta in platforms.items() %}{% set r = runs.get(pf) %}
+      <tr><td>{{ meta.name }}</td><td>{{ r.ts|dtfmt if r else '–' }}</td>
+      <td>{% if not r %}–{% elif r.ok %}<span class="badge ok">OK</span>{% else %}<span class="errtext">{{ r.message }}</span>{% endif %}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endblock %}

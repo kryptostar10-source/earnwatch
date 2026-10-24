@@ -1,0 +1,67 @@
+# EarnWatch – Stack für Portainer (Web-Editor)
+# Vorher: Image "earnwatch:local" unter Images -> Build a new image aus earnwatch-image.tar bauen.
+# Variablen (EW_IP, EW_SUBNET, EW_GATEWAY, EW_PARENT_IF, EW_SETUP_TOKEN) unten im
+# Portainer-Formular bei "Environment variables" eintragen.
+
+services:
+  earnwatch:
+    image: earnwatch:local
+    container_name: earnwatch
+    restart: unless-stopped
+    environment:
+      TZ: Europe/Berlin
+      EW_SETUP_TOKEN: ${EW_SETUP_TOKEN}
+      EW_INTERVAL_MIN: "60"
+      EW_SECURE_COOKIES: "true"
+    volumes:
+      - earnwatch_data:/data
+    networks:
+      - backend
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 256m
+    pids_limit: 100
+
+  caddy:
+    image: caddy:2.10-alpine
+    container_name: earnwatch-caddy
+    restart: unless-stopped
+    depends_on: [earnwatch]
+    # HTTPS mit eigenem, lokalem Zertifikat auf der LAN-IP; HTTP wird auf HTTPS umgeleitet
+    command: caddy reverse-proxy --from https://${EW_IP} --to earnwatch:8080 --internal-certs
+    volumes:
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      lan:
+        ipv4_address: ${EW_IP}
+      backend: {}
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m
+    cap_drop: [ALL]
+    cap_add: [NET_BIND_SERVICE]
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 128m
+    pids_limit: 100
+
+networks:
+  lan:
+    driver: macvlan
+    driver_opts:
+      parent: ${EW_PARENT_IF}
+    ipam:
+      config:
+        - subnet: ${EW_SUBNET}
+          gateway: ${EW_GATEWAY}
+  backend: {}
+
+volumes:
+  earnwatch_data:
+  caddy_data:
+  caddy_config:

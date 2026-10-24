@@ -1,0 +1,106 @@
+# EarnWatch – sicheres Einnahmen-Dashboard (Honeygain + EarnApp)
+# Start:            docker compose up -d --build
+# Mit Earn-Apps:    docker compose --profile earners up -d --build
+
+name: earnwatch
+
+services:
+  # --- Dashboard (nur intern erreichbar, kein Port nach außen) -------------
+  earnwatch:
+    build: ./app
+    image: earnwatch:local
+    container_name: earnwatch
+    restart: unless-stopped
+    environment:
+      TZ: ${TZ:-Europe/Berlin}
+      EW_SETUP_TOKEN: ${EW_SETUP_TOKEN:?EW_SETUP_TOKEN in .env setzen}
+      EW_INTERVAL_MIN: ${EW_INTERVAL_MIN:-60}
+      EW_SECURE_COOKIES: "true"
+    volumes:
+      - earnwatch_data:/data
+    networks:
+      - backend
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 256m
+    pids_limit: 100
+
+  # --- HTTPS-Eingang mit eigener IP im Heimnetz -----------------------------
+  caddy:
+    image: caddy:2.10-alpine
+    container_name: earnwatch-caddy
+    restart: unless-stopped
+    depends_on: [earnwatch]
+    environment:
+      EW_IP: ${EW_IP:?EW_IP in .env setzen}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      lan:
+        ipv4_address: ${EW_IP}
+      backend: {}
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m
+    cap_drop: [ALL]
+    cap_add: [NET_BIND_SERVICE]
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 128m
+    pids_limit: 100
+
+  # --- Optional: die Earn-Apps selbst (nur mit --profile earners) -----------
+  honeygain:
+    profiles: [earners]
+    image: honeygain/honeygain:latest
+    container_name: honeygain
+    restart: unless-stopped
+    command: -tou-accept -email ${HG_EMAIL} -pass ${HG_PASSWORD} -device ${HG_DEVICE:-proxmox}
+    networks: [earners]
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 256m
+    pids_limit: 100
+
+  earnapp:
+    profiles: [earners]
+    image: fazalfarhan01/earnapp:lite
+    container_name: earnapp
+    restart: unless-stopped
+    environment:
+      EARNAPP_UUID: ${EARNAPP_UUID}
+      EARNAPP_TERM: "yes"
+    volumes:
+      - earnapp_data:/etc/earnapp
+    networks: [earners]
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 256m
+    pids_limit: 200
+
+networks:
+  # Eigene IP im Heimnetz (macvlan)
+  lan:
+    driver: macvlan
+    driver_opts:
+      parent: ${EW_PARENT_IF:-eth0}
+    ipam:
+      config:
+        - subnet: ${EW_SUBNET:-192.168.1.0/24}
+          gateway: ${EW_GATEWAY:-192.168.1.1}
+  # Internes Netz zwischen Caddy und App (App braucht Internet für die APIs)
+  backend: {}
+  # Earn-Apps getrennt vom Dashboard
+  earners: {}
+
+volumes:
+  earnwatch_data:
+  caddy_data:
+  caddy_config:
+  earnapp_data:

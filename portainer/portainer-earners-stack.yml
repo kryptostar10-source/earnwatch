@@ -1,0 +1,29 @@
+# Optional: Honeygain + EarnApp als eigener Stack in Portainer
+# Variablen: HG_EMAIL, HG_PASSWORD, HG_DEVICE, EARNAPP_UUID
+services:
+  honeygain:
+    image: honeygain/honeygain:latest
+    container_name: honeygain
+    restart: unless-stopped
+    command: -tou-accept -email ${HG_EMAIL} -pass ${HG_PASSWORD} -device ${HG_DEVICE}
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 256m
+    pids_limit: 100
+
+  earnapp:
+    image: fazalfarhan01/earnapp:lite
+    container_name: earnapp
+    restart: unless-stopped
+    environment:
+      EARNAPP_UUID: ${EARNAPP_UUID}
+      EARNAPP_TERM: "yes"
+    volumes:
+      - earnapp_data:/etc/earnapp
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 256m
+    pids_limit: 200
+
+volumes:
+  earnapp_data:

@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+{% block title %}Übersicht · EarnWatch{% endblock %}
+{% block content %}
+{% set eur = eur_rate if eur_rate > 0 else none %}
+{% macro usd(v) %}{{ money(v) }}{% if eur %}<small class="eur"> ≈ {{ '%.2f'|format(v*eur) }} €</small>{% endif %}{% endmacro %}
+
+<div class="head">
+  <div>
+    <h1>Einnahmen</h1>
+    <p class="muted">5 Plattformen · automatischer Abruf, Beträge in USD{% if eur %} (≈ € zum Kurs {{ '%.2f'|format(eur) }}){% endif %}</p>
+  </div>
+  <form method="post" action="/collect">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <button class="primary">Jetzt abrufen</button>
+  </form>
+</div>
+
+<section class="kpis">
+  <div class="kpi"><span>Guthaben gesamt</span><strong>{{ usd(d.totals.balance) }}</strong></div>
+  <div class="kpi"><span>Heute</span><strong>{{ usd(d.totals.today) }}</strong></div>
+  <div class="kpi"><span>Diese Woche</span><strong>{{ usd(d.totals.week) }}</strong></div>
+  <div class="kpi"><span>Dieser Monat</span><strong>{{ usd(d.totals.month) }}</strong></div>
+  <div class="kpi"><span>Dieses Jahr</span><strong>{{ usd(d.totals.year) }}</strong></div>
+  <div class="kpi"><span>Prognose / Monat</span><strong>{{ usd(d.totals.forecast) }}</strong></div>
+</section>
+
+
+
+<section class="platforms">
+{% for p in d.platforms %}
+  <article class="card pf">
+    <header>
+      <span class="dot" data-pf="{{ p.id }}"></span>
+      <h2>{{ p.name }}</h2>
+      {% if not p.configured %}<span class="badge muted">nicht eingerichtet</span>
+      {% elif p.run and not p.run.ok %}<span class="badge err" title="{{ p.run.message }}">Fehler</span>
+      {% elif p.run %}<span class="badge ok">aktiv</span>{% endif %}
+    </header>
+    {% if p.configured %}
+      <div class="bal">{{ amount(p.balance, p.unit) }}</div>
+      {% if p.unit != 'USD' and p.fac and p.balance is not none %}<div class="muted small">≈ {{ money(p.balance * p.fac) }} (Kurs {{ '%.6f'|format(p.fac) }} $/{{ p.unit }})</div>{% endif %}
+      {% if p.progress is not none %}
+      <div class="progress">
+        <progress max="1" value="{{ p.progress }}"></progress>
+        <span>{{ '%d'|format(p.progress*100) }} % bis zur Auszahlung ({{ money(p.min_payout) }})</span>
+      </div>
+      {% endif %}
+      {% if p.info.miner is defined %}<p class="small">⛏ {{ p.info.miner }} Miner aktiv · {{ '%.1f'|format(p.info.hashrate/1000) }} kH/s</p>{% endif %}
+      {% if p.info.art is defined %}<p class="small muted">Punkte {{ p.info.art }}{% if p.info.geraete is defined %} · {{ p.info.geraete }} Gerät(e){% endif %}</p>{% endif %}
+      <dl>
+        <div><dt>Heute</dt><dd>{{ amount(p.today, p.unit) }}</dd></div>
+        <div><dt>Woche</dt><dd>{{ amount(p.week, p.unit) }}</dd></div>
+        <div><dt>Monat</dt><dd>{{ amount(p.month, p.unit) }}</dd></div>
+        <div><dt>Jahr</dt><dd>{{ amount(p.year, p.unit) }}</dd></div>
+      </dl>
+      <footer class="muted small">
+        Letzter Messwert: {{ p.last_ts|dtfmt }}
+        {% if p.run and not p.run.ok %}<br><span class="errtext">{{ p.run.message }}</span>{% endif %}
+        · <a href="{{ p.dashboard }}" rel="noopener noreferrer" target="_blank">Zum Anbieter ↗</a>
+      </footer>
+    {% else %}
+      <p class="muted">Zugangsdaten in den <a href="/settings#{{ p.id }}">Einstellungen</a> hinterlegen.</p>
+    {% endif %}
+  </article>
+{% endfor %}
+</section>
+
+<section class="card">
+  <div class="cardhead">
+    <h2>{{ {'day':'Tageseinnahmen','week':'Wocheneinnahmen','month':'Monatseinnahmen','year':'Jahreseinnahmen'}[view] }}</h2>
+    <nav class="seg" aria-label="Zeitraum">
+      <a href="/?view=day" {% if view == 'day' %}aria-current="page"{% endif %}>Tage</a>
+      <a href="/?view=week" {% if view == 'week' %}aria-current="page"{% endif %}>Wochen</a>
+      <a href="/?view=month" {% if view == 'month' %}aria-current="page"{% endif %}>Monate</a>
+      <a href="/?view=year" {% if view == 'year' %}aria-current="page"{% endif %}>Jahre</a>
+    </nav>
+  </div>
+  {% if d.has_data %}{{ bar_svg }}{% else %}<p class="muted">Noch keine Daten – nach den ersten Abrufen erscheint hier das Diagramm.</p>{% endif %}
+  <ul class="legend">{% for p in d.platforms if p.fac is not none %}<li><span class="dot" data-pf="{{ p.id }}"></span>{{ p.name }}</li>{% endfor %}</ul>
+</section>
+
+<section class="card">
+  <h2>Nach Zeitraum</h2>
+  <div class="tablewrap">
+  <table class="periods">
+    <thead><tr><th>Plattform</th><th class="num">Heute</th><th class="num">Woche</th><th class="num">Monat</th><th class="num">Jahr</th><th class="num">Gesamt</th></tr></thead>
+    <tbody>
+    {% for p in d.platforms if p.configured %}
+      <tr>
+        <td><span class="dot" data-pf="{{ p.id }}"></span> {{ p.name }}</td>
+        {% for k in ['today','week','month','year','all'] %}
+        <td class="num">{{ amount(p[k], p.unit) }}{% if p.unit != 'USD' and p.fac %}<small class="eur">{{ money(p[k]*p.fac) }}</small>{% endif %}</td>
+        {% endfor %}
+      </tr>
+    {% else %}
+      <tr><td colspan="6" class="muted">Noch keine Plattform eingerichtet – siehe <a href="/settings">Einstellungen</a>.</td></tr>
+    {% endfor %}
+    </tbody>
+    {% if d.platforms|selectattr('configured')|list %}
+    <tfoot><tr><th>Summe (USD)</th>
+      {% for k in ['today','week','month','year','all'] %}<th class="num">{{ money(d.totals[k]) }}</th>{% endfor %}
+    </tr></tfoot>
+    {% endif %}
+  </table>
+  </div>
+</section>
+
+<section class="card">
+  <h2>Guthaben-Verlauf (USD, 90 Tage)</h2>
+  {{ line_svg }}
+</section>
+
+<section class="card">
+  <div class="cardhead"><h2>Auszahlungen</h2><a href="/export.csv" class="small">CSV exportieren</a></div>
+  {% if d.payouts %}
+  <table>
+    <thead><tr><th>Datum</th><th>Plattform</th><th class="num">Betrag</th></tr></thead>
+    <tbody>
+    {% for p in d.payouts %}
+      <tr><td>{{ p.ts|dtfmt }}</td><td>{{ names[p.platform] }}</td><td class="num">{{ amount(p.amount, units[p.platform]) }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}<p class="muted">Noch keine Auszahlung erkannt. Sinkt ein Guthaben, wird das automatisch als Auszahlung verbucht.</p>{% endif %}
+</section>
+{% endblock %}

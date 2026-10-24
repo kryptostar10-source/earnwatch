@@ -1,0 +1,22 @@
+{
+	# Kein Let's Encrypt – eigenes, lokales Zertifikat für die LAN-IP
+	auto_https disable_redirects
+	admin off
+}
+
+# HTTP -> HTTPS
+http://{$EW_IP} {
+	redir https://{$EW_IP}{uri} permanent
+}
+
+https://{$EW_IP} {
+	tls internal
+
+	# Nur Geräte aus dem Heimnetz (private IP-Bereiche) dürfen zugreifen
+	@outside not remote_ip private_ranges
+	abort @outside
+
+	header -Server
+
+	reverse_proxy earnwatch:8080
+}
