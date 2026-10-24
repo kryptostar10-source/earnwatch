@@ -55,13 +55,39 @@ def otpauth_uri(secret_b32: str, account: str, issuer: str = "EarnWatch") -> str
 
 
 def qr_svg(data: str) -> str | None:
-    """QR-Code als SVG (Bibliothek segno). None, falls nicht installiert."""
+    """QR-Code als SVG. None, falls die Bibliothek segno nicht installiert ist.
+
+    segno berechnet nur die Matrix; das SVG bauen wir selbst – mit viewBox (frei
+    skalierbar, nichts wird abgeschnitten), 4 Module weißem Rand (Pflicht-Ruhezone
+    für Scanner) und harten Kanten, damit Handy-Kameras ihn sicher erkennen.
+    """
     try:
         import segno
     except ImportError:
         return None
-    return segno.make(data, error="m", micro=False).svg_inline(
-        scale=5, border=3, dark="#0a0d11", light="#ffffff")
+    qr = segno.make(data, error="m", micro=False)
+    return matrix_to_svg(qr.matrix_iter(scale=1, border=4))
+
+
+def matrix_to_svg(rows) -> str:
+    rows = [[bool(v) for v in r] for r in rows]
+    n = len(rows)
+    w = len(rows[0]) if n else 0
+    rects = []
+    for y, row in enumerate(rows):
+        x = 0
+        while x < w:
+            if row[x]:
+                start = x
+                while x < w and row[x]:
+                    x += 1
+                rects.append(f'<rect x="{start}" y="{y}" width="{x - start}" height="1"/>')
+            else:
+                x += 1
+    return (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {w} {n}" class="qr" '
+            f'shape-rendering="crispEdges" role="img" aria-label="QR-Code für die Authenticator-App">'
+            f'<rect width="{w}" height="{n}" fill="#ffffff"/>'
+            f'<g fill="#000000">{"".join(rects)}</g></svg>')
 
 
 # --- Wiederherstellungscodes ----------------------------------------------

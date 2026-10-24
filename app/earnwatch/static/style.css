@@ -201,9 +201,9 @@ main.auth{min-height:100vh;display:grid;place-items:center;padding:16px}
 .twofa .steps li::before{content:counter(s);position:absolute;left:14px;top:14px;width:26px;height:26px;border-radius:8px;background:var(--accent);color:var(--ink);font-weight:700;display:flex;align-items:center;justify-content:center;font-size:13px}
 .twofa .steps b{font-size:14px}.twofa .steps span{font-size:12px;color:var(--muted)}
 .twofa-grid{display:flex;flex-wrap:wrap;gap:24px;align-items:flex-start}
-.qrbox{background:#fff;border-radius:16px;padding:8px;flex:none;line-height:0}
-.qrbox svg{width:232px;height:232px;display:block}
-.qrbox p{line-height:1.4;width:232px;padding:20px;color:#333}
+.qrbox{background:#fff;border-radius:16px;padding:0;flex:none;line-height:0;overflow:hidden}
+.qrbox svg{width:260px;height:260px;display:block;opacity:1;filter:none}
+.qrbox p{line-height:1.4;width:260px;padding:20px;color:#333}
 .twofa-side{flex:1 1 300px;min-width:0;display:flex;flex-direction:column;gap:16px}
 .twofa-side form{display:flex;flex-direction:column;gap:4px}
 .twofa-side form .btn{justify-content:center}
