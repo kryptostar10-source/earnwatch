@@ -26,7 +26,7 @@ https://{$EW_IP} {
 		max_size 64KB
 	}
 
-	reverse_proxy earnwatch:8080 {
+	reverse_proxy earnwatch-app:8080 {
 		# echte Client-IP erzwingen (gefälschte X-Forwarded-For-Header werden überschrieben)
 		header_up X-Forwarded-For {remote_host}
 	}

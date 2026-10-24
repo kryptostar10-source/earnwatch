@@ -20,7 +20,8 @@ services:
     volumes:
       - earnwatch_data:/data
     networks:
-      - backend
+      backend:
+        aliases: [earnwatch-app]
     read_only: true
     tmpfs:
       - /tmp:size=16m,mode=1777
@@ -63,7 +64,8 @@ services:
     profiles: [tailscale]
     image: tailscale/tailscale:stable
     container_name: earnwatch-tailscale
-    hostname: earnwatch
+    # KEIN "hostname: earnwatch" – sonst zeigt "earnwatch" im Container auf sich selbst.
+    # Der Name im Tailnet kommt aus TS_HOSTNAME.
     restart: unless-stopped
     depends_on: [earnwatch]
     environment:

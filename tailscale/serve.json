@@ -5,7 +5,7 @@
   "Web": {
     "${TS_CERT_DOMAIN}:443": {
       "Handlers": {
-        "/": { "Proxy": "http://earnwatch:8080" }
+        "/": { "Proxy": "http://earnwatch-app:8080" }
       }
     }
   },
