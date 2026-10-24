@@ -102,6 +102,8 @@ if [[ ",$PROFILES," =~ ,(honeygain|earnapp|pawns|earnfm), ]]; then
 Description=EarnWatch: Earn-App-Container vom Heimnetz abschotten
 After=docker.service
 Requires=docker.service
+# Startet/stoppt zusammen mit Docker – auch bei "systemctl restart docker"
+PartOf=docker.service
 
 [Service]
 Type=oneshot
@@ -110,9 +112,9 @@ ExecStart=$DIR/lan-guard.sh apply
 ExecStop=$DIR/lan-guard.sh remove
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=multi-user.target docker.service
 UNIT
-    systemctl daemon-reload && systemctl enable --now earnwatch-lan-guard.service \
+    systemctl daemon-reload && systemctl reenable earnwatch-lan-guard.service >/dev/null 2>&1; systemctl restart earnwatch-lan-guard.service \
       && echo "  LAN-Sperre aktiv (bleibt auch nach Neustart)" \
       || echo "  Hinweis: LAN-Sperre konnte nicht aktiviert werden (iptables/systemd fehlt?)"
   fi
