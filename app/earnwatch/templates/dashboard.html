@@ -2,143 +2,228 @@
 {% block title %}Übersicht · EarnWatch{% endblock %}
 {% block content %}
 {% set eur = eur_rate if eur_rate > 0 else none %}
-{% macro usd(v) %}{{ money(v) }}{% if eur %}<small class="eur"> ≈ {{ '%.2f'|format(v*eur) }} €</small>{% endif %}{% endmacro %}
+{% set plabels = {'today':'Heute','week':'Woche','month':'Monat','year':'Jahr'} %}
+{% set plong = {'today':'heute','week':'diese Woche','month':'diesen Monat','year':'dieses Jahr'} %}
+{% set pprev = {'today':'gestern','week':'Vorwoche','month':'Vormonat','year':'Vorjahr'} %}
+{% macro eurtxt(v) %}{% if eur %}≈ {{ '{:,.2f}'.format(v*eur).replace(',', 'X').replace('.', ',').replace('X', '.') }} €{% endif %}{% endmacro %}
+{% macro q(p, v) %}?period={{ p }}&amp;view={{ v }}{% endmacro %}
+{% set active = d.platforms|selectattr('configured')|list %}
 
-<div class="head">
+<header class="pagehead">
   <div>
-    <h1>Einnahmen</h1>
-    <p class="muted">{{ d.platforms|selectattr("configured")|list|length }} Plattformen aktiv · automatischer Abruf, Beträge in USD{% if eur %} (≈ € zum Kurs {{ '%.2f'|format(eur) }}){% endif %}</p>
+    <div class="date">{{ today_str }}</div>
+    <h1>{{ greeting }}{% if user %}, {{ user.username }}{% endif %}</h1>
   </div>
-  <form method="post" action="/collect">
-    <input type="hidden" name="csrf" value="{{ csrf }}">
-    <button class="primary">Jetzt abrufen</button>
-  </form>
-</div>
+  <div class="pagehead-actions" >
+    <nav class="seg" aria-label="Zeitraum">
+      {% for k in ['today','week','month','year'] %}
+      <a href="{{ q(k, view) }}" {% if period == k %}aria-current="page"{% endif %}>{{ plabels[k] }}</a>
+      {% endfor %}
+    </nav>
+    <form method="post" action="/collect">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <button class="btn primary">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg>
+        Jetzt abrufen</button>
+    </form>
+  </div>
+</header>
 
-<section class="kpis">
-  <div class="kpi"><span>Guthaben gesamt</span><strong>{{ usd(d.totals.balance) }}</strong></div>
-  <div class="kpi"><span>Heute</span><strong>{{ usd(d.totals.today) }}</strong></div>
-  <div class="kpi"><span>Diese Woche</span><strong>{{ usd(d.totals.week) }}</strong></div>
-  <div class="kpi"><span>Dieser Monat</span><strong>{{ usd(d.totals.month) }}</strong></div>
-  <div class="kpi"><span>Dieses Jahr</span><strong>{{ usd(d.totals.year) }}</strong></div>
-  <div class="kpi"><span>Prognose / Monat</span><strong>{{ usd(d.totals.forecast) }}</strong></div>
+{% if not active %}
+<section class="card empty-state">
+  <h2>Willkommen bei EarnWatch</h2>
+  <p>Trag unter <a href="/settings">Einstellungen</a> deine erste Plattform ein. Nach dem ersten Abruf füllt sich hier alles.</p>
+</section>
+{% endif %}
+
+<section class="hero">
+  <div class="herocard">
+    <div class="top"><span>Guthaben gesamt</span><span class="tag">{{ active|length }} Plattform{{ '' if active|length == 1 else 'en' }}</span></div>
+    <div>
+      <div class="big">{{ money(d.totals.balance) }}</div>
+      {% if eur %}<div class="eur">{{ eurtxt(d.totals.balance) }}</div>{% endif %}
+    </div>
+    {{ hero_svg }}
+  </div>
+
+  <div class="card periodcard">
+    <div class="cardhead" >
+      <span class="soft">Einnahmen {{ plong[period] }}</span>
+      {% if d.growth is not none %}
+        {% if d.growth >= 0 %}<span class="pill ok">▲ {{ '%.0f'|format(d.growth) }} % ggü. {{ pprev[period] }}</span>
+        {% else %}<span class="pill err">▼ {{ '%.0f'|format(-d.growth) }} % ggü. {{ pprev[period] }}</span>{% endif %}
+      {% else %}<span class="pill dim">noch kein Vergleich</span>{% endif %}
+    </div>
+    <div>
+      <div class="big">{{ money(d.totals[period]) }}</div>
+      {% if eur %}<div class="muted mono small">{{ eurtxt(d.totals[period]) }}</div>{% endif %}
+    </div>
+    <div class="minis">
+      <div class="mini"><span>Ø pro Tag</span><b>{{ money(d.avg_day) }}</b></div>
+      <div class="mini"><span>Prognose Monat</span><b>{{ money(d.totals.forecast) }}</b></div>
+      <div class="mini"><span>Ausgezahlt</span><b>{{ money(d.totals.paid_out) }}</b></div>
+    </div>
+    <div>
+      {{ share_svg }}
+      <div class="small muted sharelbl">Anteil je Plattform · {{ plong[period] }}</div>
+    </div>
+  </div>
 </section>
 
+<section class="kpis" aria-label="Einnahmen nach Zeitraum">
+  {% for k in ['today','week','month','year'] %}
+  <a class="kpi" href="{{ q(k, view) }}" {% if period == k %}aria-current="page"{% endif %}>
+    <span>{{ plabels[k] }}</span>
+    <b>{{ money(d.totals[k]) }}</b>
+    {% if eur %}<small>{{ eurtxt(d.totals[k]) }}</small>{% endif %}
+  </a>
+  {% endfor %}
+</section>
 
+<section class="split">
+  <div class="main card">
+    <div class="cardhead">
+      <div>
+        <h2>{{ {'day':'Tageseinnahmen','week':'Wocheneinnahmen','month':'Monatseinnahmen','year':'Jahreseinnahmen'}[view] }}</h2>
+        <span class="small muted">gestapelt nach Plattform, in USD</span>
+      </div>
+      <nav class="seg small" aria-label="Diagramm-Ansicht">
+        {% for v, l in [('day','Tage'),('week','Wochen'),('month','Monate'),('year','Jahre')] %}
+        <a href="{{ q(period, v) }}" {% if view == v %}aria-current="page"{% endif %}>{{ l }}</a>
+        {% endfor %}
+      </nav>
+    </div>
+    {% if d.has_data %}<div class="chartwrap">{{ bar_svg }}</div>{% else %}<p class="muted">Noch keine Daten – nach den ersten Abrufen erscheint hier das Diagramm.</p>{% endif %}
+    <ul class="legend">{% for p in active if p.fac is not none %}<li><span class="dot" data-pf="{{ p.id }}"></span>{{ p.name }}</li>{% endfor %}</ul>
+  </div>
 
-<section class="platforms">
-{% for p in d.platforms %}
-  <article class="card pf">
-    <header>
-      <span class="dot" data-pf="{{ p.id }}"></span>
-      <h2>{{ p.name }}</h2>
-      {% if not p.configured %}<span class="badge muted">nicht eingerichtet</span>
-      {% elif p.run and not p.run.ok %}<span class="badge err" title="{{ p.run.message }}">Fehler</span>
-      {% elif p.run %}<span class="badge ok">aktiv</span>{% endif %}
-    </header>
-    {% if p.configured %}
-      <div class="bal">{{ amount(p.balance, p.unit) }}</div>
-      {% if p.lifetime %}<div class="muted small">insgesamt an JumpTask gesendet</div>{% endif %}
-      {% if p.unit != 'USD' and p.fac and p.balance is not none %}<div class="muted small">≈ {{ money(p.balance * p.fac) }} (Kurs {{ '%.6f'|format(p.fac) }} $/{{ p.unit }})</div>{% endif %}
+  <div class="aside">
+    {% if duino and duino.configured %}
+    <div class="card sm">
+      <div class="cardhead">
+        <h2>Duino-Coin Miner</h2>
+        <span class="pill duco">{{ duino.info.miner|default(0) }} online</span>
+      </div>
+      <p class="minerhead"><b class="mono">{{ '%.1f'|format((duino.info.hashrate|default(0))/1000) }}</b> <span class="muted small">kH/s gesamt · {{ amount(duino.balance, 'DUCO') }}</span></p>
+      {{ miners_svg }}
+    </div>
+    {% endif %}
+
+    <div class="card sm">
+      <div class="cardhead"><h2>Letzte Aktivität</h2></div>
+      {% if d.feed %}
+      <ul class="feed">
+        {% for f in d.feed %}
+        <li>
+          <span class="ico"><span class="dot" data-pf="{{ f.pf }}"></span></span>
+          <span class="txt"><b>{{ f.name }}{% if f.kind == 'payout' %} · Auszahlung{% elif f.kind == 'error' %} · {{ f.text }}{% endif %}</b><span>{{ f.ts|ago }}</span></span>
+          {% if f.kind == 'earn' %}<span class="amt plus">+{{ amount(f.amount, f.unit) }}</span>
+          {% elif f.kind == 'payout' %}<span class="amt out">−{{ amount(f.amount, f.unit) }}</span>
+          {% else %}<span class="amt bad">Fehler</span>{% endif %}
+        </li>
+        {% endfor %}
+      </ul>
+      {% else %}<p class="muted small">Noch nichts passiert.</p>{% endif %}
+    </div>
+  </div>
+</section>
+
+<section id="plattformen">
+  <div class="cardhead sectionhead">
+    <h2>Plattformen</h2>
+    <span class="small muted">Zuwachs: {{ plong[period] }}</span>
+  </div>
+  <div class="tiles">
+  {% for p in d.platforms %}
+    <article class="card sm tile">
+      <header>
+        <span class="badge" data-pf="{{ p.id }}">{{ p.short }}</span>
+        <div class="ttl">
+          <b>{{ p.name }}</b>
+          <span>{% if p.lifetime %}an JumpTask gesendet{% elif p.manual %}manuell eingetragen{% elif p.info.modus is defined %}Modus: {{ p.info.modus }}{% elif p.unit == 'DUCO' and p.fac %}≈ {{ money(p.balance * p.fac) if p.balance is not none else '–' }}{% elif p.unit == 'Punkte' %}Punkte{% if p.info.art is defined %} · {{ p.info.art }}{% endif %}{% else %}{{ p.unit }}{% endif %}</span>
+        </div>
+        {% if not p.configured %}<span class="pill dim">aus</span>
+        {% elif p.run and not p.run.ok %}<span class="pill err" title="{{ p.run.message }}">Fehler</span>
+        {% elif p.manual %}<span class="pill warn">manuell</span>
+        {% else %}<span class="pill ok">aktiv</span>{% endif %}
+      </header>
+
+      {% if p.configured %}
+      <div class="vals">
+        <div>
+          <div class="bal">{{ amount(p.balance, p.unit) }}</div>
+          <div class="inc">+{{ amount(p.sel, p.unit) }}</div>
+        </div>
+        {{ sparks[p.id] }}
+      </div>
       {% if p.progress is not none and p.info.modus != 'JumpTask' %}
-      <div class="progress">
-        <progress max="1" value="{{ p.progress }}"></progress>
-        <span>{{ '%d'|format(p.progress*100) }} % bis zur Auszahlung ({{ money(p.min_payout) }})</span>
+      <div class="goal">
+        <progress max="1" value="{{ p.progress }}" aria-label="Fortschritt bis zur Auszahlung"></progress>
+        <span class="small muted">{{ '%d'|format(p.progress*100) }} % bis zur Auszahlung ({{ money(p.min_payout) }})</span>
       </div>
       {% endif %}
-      {% if p.info.miner is defined %}<p class="small">⛏ {{ p.info.miner }} Miner aktiv · {{ '%.1f'|format(p.info.hashrate/1000) }} kH/s</p>{% endif %}
-      {% if p.info.modus is defined %}<p class="small">Modus: <strong>{{ p.info.modus }}</strong>{% if p.info.credits is defined %} · {{ '{:,.0f}'.format(p.info.credits) }} Credits gesamt{% endif %}</p>{% endif %}
-      {% if p.info.art is defined %}<p class="small muted">Punkte {{ p.info.art }}{% if p.info.geraete is defined %} · {{ p.info.geraete }} Gerät(e){% endif %}</p>{% endif %}
-      <dl>
-        <div><dt>Heute</dt><dd>{{ amount(p.today, p.unit) }}</dd></div>
-        <div><dt>Woche</dt><dd>{{ amount(p.week, p.unit) }}</dd></div>
-        <div><dt>Monat</dt><dd>{{ amount(p.month, p.unit) }}</dd></div>
-        <div><dt>Jahr</dt><dd>{{ amount(p.year, p.unit) }}</dd></div>
-      </dl>
-      {% if p.manual %}
-      <form method="post" action="/settings/{{ p.id }}" class="manual">
-        <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="back" value="/">
-        <input name="balance" inputmode="decimal" placeholder="Neuer Stand in $" required aria-label="Neuer Kontostand">
-        <button>Eintragen</button>
-      </form>
       {% endif %}
-      <footer class="muted small">
-        Letzter Messwert: {{ p.last_ts|dtfmt }}
-        {% if p.run and not p.run.ok %}<br><span class="errtext">{{ p.run.message }}</span>{% endif %}
-        · <a href="{{ p.dashboard }}" rel="noopener noreferrer" target="_blank">Zum Anbieter ↗</a>
-      </footer>
-    {% else %}
-      {% if p.manual %}
-      <form method="post" action="/settings/{{ p.id }}" class="manual">
-        <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="back" value="/">
-        <input name="balance" inputmode="decimal" placeholder="Aktueller Stand in $" required aria-label="Kontostand">
-        <button>Eintragen</button>
-      </form>
-      <p class="muted small">Manuell: Stand von wipter.com abtippen.</p>
-      {% else %}
-      <p class="muted">Zugangsdaten in den <a href="/settings#{{ p.id }}">Einstellungen</a> hinterlegen.</p>
-      {% endif %}
-    {% endif %}
-  </article>
-{% endfor %}
-</section>
 
-<section class="card">
-  <div class="cardhead">
-    <h2>{{ {'day':'Tageseinnahmen','week':'Wocheneinnahmen','month':'Monatseinnahmen','year':'Jahreseinnahmen'}[view] }}</h2>
-    <nav class="seg" aria-label="Zeitraum">
-      <a href="/?view=day" {% if view == 'day' %}aria-current="page"{% endif %}>Tage</a>
-      <a href="/?view=week" {% if view == 'week' %}aria-current="page"{% endif %}>Wochen</a>
-      <a href="/?view=month" {% if view == 'month' %}aria-current="page"{% endif %}>Monate</a>
-      <a href="/?view=year" {% if view == 'year' %}aria-current="page"{% endif %}>Jahre</a>
-    </nav>
+      {% if p.manual %}
+      <form method="post" action="/settings/{{ p.id }}" class="manual">
+        <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="back" value="/">
+        <label class="sr-only" for="m-{{ p.id }}">Neuer Kontostand {{ p.name }}</label>
+        <input id="m-{{ p.id }}" name="balance" inputmode="decimal" placeholder="Stand in $" required>
+        <button class="btn sm">Eintragen</button>
+      </form>
+      {% elif not p.configured %}
+      <p class="small muted">In den <a href="/settings#{{ p.id }}">Einstellungen</a> einrichten.</p>
+      {% endif %}
+
+      {% if p.configured %}
+      <div class="foot">
+        <span>{{ p.last_ts|ago if p.last_ts else 'noch kein Messwert' }}</span>
+        <a href="{{ p.dashboard }}" rel="noopener noreferrer" target="_blank">Zum Anbieter ↗</a>
+        {% if p.run and not p.run.ok %}<span class="errtext">{{ p.run.message }}</span>{% endif %}
+      </div>
+      {% endif %}
+    </article>
+  {% endfor %}
   </div>
-  {% if d.has_data %}{{ bar_svg }}{% else %}<p class="muted">Noch keine Daten – nach den ersten Abrufen erscheint hier das Diagramm.</p>{% endif %}
-  <ul class="legend">{% for p in d.platforms if p.fac is not none %}<li><span class="dot" data-pf="{{ p.id }}"></span>{{ p.name }}</li>{% endfor %}</ul>
 </section>
 
-<section class="card">
-  <h2>Nach Zeitraum</h2>
+<section class="card" aria-label="Einnahmen nach Zeitraum">
+  <div class="cardhead"><h2>Nach Zeitraum</h2></div>
   <div class="tablewrap">
-  <table class="periods">
+  <table>
     <thead><tr><th>Plattform</th><th class="num">Heute</th><th class="num">Woche</th><th class="num">Monat</th><th class="num">Jahr</th><th class="num">Gesamt</th></tr></thead>
     <tbody>
-    {% for p in d.platforms if p.configured %}
+    {% for p in active %}
       <tr>
         <td><span class="dot" data-pf="{{ p.id }}"></span> {{ p.name }}</td>
         {% for k in ['today','week','month','year','all'] %}
-        <td class="num">{{ amount(p[k], p.unit) }}{% if p.unit != 'USD' and p.fac %}<small class="eur">{{ money(p[k]*p.fac) }}</small>{% endif %}</td>
+        <td class="num">{{ amount(p[k], p.unit) }}{% if p.unit != 'USD' and p.fac %}<small>{{ money(p[k]*p.fac) }}</small>{% endif %}</td>
         {% endfor %}
       </tr>
     {% else %}
-      <tr><td colspan="6" class="muted">Noch keine Plattform eingerichtet – siehe <a href="/settings">Einstellungen</a>.</td></tr>
+      <tr><td colspan="6" class="muted">Noch keine Plattform eingerichtet.</td></tr>
     {% endfor %}
     </tbody>
-    {% if d.platforms|selectattr('configured')|list %}
-    <tfoot><tr><th>Summe (USD)</th>
-      {% for k in ['today','week','month','year','all'] %}<th class="num">{{ money(d.totals[k]) }}</th>{% endfor %}
-    </tr></tfoot>
+    {% if active %}
+    <tfoot><tr><th>Summe (USD)</th>{% for k in ['today','week','month','year','all'] %}<th class="num">{{ money(d.totals[k]) }}</th>{% endfor %}</tr></tfoot>
     {% endif %}
   </table>
   </div>
 </section>
 
-<section class="card">
-  <h2>Guthaben-Verlauf (USD, 90 Tage)</h2>
-  {{ line_svg }}
-</section>
-
-<section class="card">
+<section class="card" id="auszahlungen">
   <div class="cardhead"><h2>Auszahlungen</h2><a href="/export.csv" class="small">CSV exportieren</a></div>
   {% if d.payouts %}
+  <div class="tablewrap">
   <table>
     <thead><tr><th>Datum</th><th>Plattform</th><th class="num">Betrag</th></tr></thead>
     <tbody>
     {% for p in d.payouts %}
-      <tr><td>{{ p.ts|dtfmt }}</td><td>{{ names[p.platform] }}</td><td class="num">{{ amount(p.amount, units[p.platform]) }}</td></tr>
+      <tr><td>{{ p.ts|dtfmt }}</td><td><span class="dot" data-pf="{{ p.platform }}"></span> {{ names[p.platform] }}</td><td class="num">{{ amount(p.amount, units[p.platform]) }}</td></tr>
     {% endfor %}
     </tbody>
   </table>
-  {% else %}<p class="muted">Noch keine Auszahlung erkannt. Sinkt ein Guthaben, wird das automatisch als Auszahlung verbucht.</p>{% endif %}
+  </div>
+  {% else %}<p class="muted small">Noch keine Auszahlung erkannt. Sinkt ein Guthaben, wird das automatisch als Auszahlung verbucht.</p>{% endif %}
 </section>
 {% endblock %}

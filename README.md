@@ -163,3 +163,8 @@ earnwatch/
 ```
 
 Weitere Anbieter lassen sich in `collectors.py` ergänzen (Eintrag in `PLATFORMS` + Abruf-Funktion).
+
+## Schriften
+
+Die Oberfläche nutzt **Sora** und **JetBrains Mono** (beide SIL Open Font License, Lizenzen in
+`app/earnwatch/static/fonts/`). Sie werden lokal ausgeliefert – es wird nichts von Google nachgeladen.

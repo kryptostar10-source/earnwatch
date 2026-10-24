@@ -33,6 +33,24 @@ BASE = Path(__file__).parent
 templates = Jinja2Templates(directory=str(BASE / "templates"))
 templates.env.globals["money"] = charts.money
 templates.env.globals["amount"] = charts.amount
+
+
+def _ago(ts):
+    if not ts:
+        return "–"
+    d = int(time.time() - ts)
+    if d < 90:
+        return "gerade eben"
+    if d < 3600:
+        return f"vor {d // 60} Min"
+    if d < 86400:
+        return f"vor {d // 3600} Std"
+    if d < 2 * 86400:
+        return "gestern"
+    return dt.datetime.fromtimestamp(ts, stats.TZ).strftime("%d.%m.%Y")
+
+
+templates.env.filters["ago"] = _ago
 templates.env.filters["dtfmt"] = lambda ts: dt.datetime.fromtimestamp(ts, stats.TZ).strftime("%d.%m.%Y %H:%M") if ts else "–"
 
 _collect_lock = asyncio.Lock()
@@ -43,7 +61,7 @@ _last_manual = 0.0
 # Sicherheits-Header
 # --------------------------------------------------------------------------
 CSP = (
-    "default-src 'none'; style-src 'self'; img-src 'self' data:; script-src 'none'; "
+    "default-src 'none'; style-src 'self'; img-src 'self' data:; font-src 'self'; script-src 'none'; "
     "form-action 'self'; frame-ancestors 'none'; base-uri 'none'"
 )
 
@@ -118,6 +136,12 @@ def render(request: Request, name: str, ctx: dict | None = None, status: int = 2
     ctx["csrf"] = auth.csrf_token(request.session)
     ctx.setdefault("user", None)
     ctx["flash"] = request.session.pop("flash", None)
+    if ctx["user"]:
+        interval = max(15, int(db.get_setting("interval_min", str(config.INTERVAL_MIN_DEFAULT))))
+        last = int(db.get_setting("last_collect_ts", "0") or 0)
+        nxt = max(0, int((last + interval * 60 - time.time()) / 60)) if last else None
+        ctx["status"] = {"interval": interval, "next_in": nxt,
+                         "frac": round(1 - nxt / interval, 3) if nxt is not None else 0}
     return templates.TemplateResponse(request, name, ctx, status_code=status)
 
 
@@ -151,6 +175,7 @@ def forbidden():
 async def collect_all() -> list:
     results = []
     async with _collect_lock:
+        db.set_setting("last_collect_ts", str(int(time.time())))
         for pf, meta in PLATFORMS.items():
             if meta.get("collect") is None:
                 continue  # wird von einer anderen Plattform mit abgerufen (z. B. JumpTask)
@@ -274,13 +299,31 @@ async def dashboard(request: Request):
     view = request.query_params.get("view", "day")
     if view not in ("day", "week", "month", "year"):
         view = "day"
-    data = stats.compute(view)
+    period = request.query_params.get("period", "week")
+    if period not in ("today", "week", "month", "year"):
+        period = "week"
+    data = stats.compute(view, period)
+    now = dt.datetime.now(stats.TZ)
+    hour = now.hour
+    greeting = ("Gute Nacht" if hour < 5 else "Guten Morgen" if hour < 11 else
+                "Guten Tag" if hour < 17 else "Guten Abend" if hour < 22 else "Gute Nacht")
+    weekdays = ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag"]
+    months = ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August",
+              "September", "Oktober", "November", "Dezember"]
+    duino = next((p for p in data["platforms"] if p["id"] == "duinocoin"), None)
     return render(request, "dashboard.html", {
         "user": user,
         "d": data,
         "view": view,
+        "period": period,
+        "greeting": greeting,
+        "today_str": f"{weekdays[now.weekday()]}, {now.day}. {months[now.month - 1]}",
         "bar_svg": charts.bar_chart(data["chart"]),
-        "line_svg": charts.line_chart(data["balance_series"]),
+        "hero_svg": charts.hero_spark(data["hero_spark"]),
+        "share_svg": charts.share_bar(data["share"]),
+        "miners_svg": charts.miners(duino["info"].get("rigs", [])) if duino and duino["configured"] else None,
+        "duino": duino,
+        "sparks": {p["id"]: charts.spark(p["spark"], p["color"]) for p in data["platforms"]},
         "eur_rate": float(db.get_setting("eur_rate", "0") or 0),
         "names": {k: v["name"] for k, v in PLATFORMS.items()},
         "units": {k: v["unit"] for k, v in PLATFORMS.items()},

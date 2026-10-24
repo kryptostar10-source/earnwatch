@@ -334,8 +334,12 @@ def collect_duinocoin(creds: dict) -> Result:
                 price = float(_json(raw2).get("Duco price") or 0) or None
         except CollectError:
             pass
+        rigs = []
+        for m in miners[:24]:
+            name = str(m.get("identifier") or m.get("software") or "Miner")[:24]
+            rigs.append({"name": name, "hashrate": float(m.get("hashrate") or 0)})
         return Result("duinocoin", round(float(bal), 6), price_usd=price,
-                      info={"miner": len(miners), "hashrate": hashrate})
+                      info={"miner": len(miners), "hashrate": hashrate, "rigs": rigs})
     except CollectError as e:
         return Result("duinocoin", None, str(e))
 
@@ -431,7 +435,7 @@ def collect_earnfm(creds: dict) -> Result:
 # "reset" (neue Epoche beginnt bei 0, z. B. Grass).
 PLATFORMS = {
     "honeygain": {
-        "name": "Honeygain", "color": "#f5a623", "unit": "USD", "usd": True, "on_drop": "payout",
+        "name": "Honeygain", "color": "#F5A623", "short": "HG", "unit": "USD", "usd": True, "on_drop": "payout",
         "collect": collect_honeygain, "dashboard": "https://dashboard.honeygain.com/", "min_payout": 20.0,
         "fields": [
             {"key": "email", "label": "E-Mail", "type": "email", "required": True},
@@ -440,7 +444,7 @@ PLATFORMS = {
         "hint": "Gleiche Daten wie auf dashboard.honeygain.com. Bei Google/Apple-Login vorher ein Passwort setzen.",
     },
     "honeygain_jt": {
-        "name": "Honeygain (JumpTask)", "color": "#3b82f6", "unit": "USD", "usd": True, "on_drop": "payout",
+        "name": "Honeygain (JumpTask)", "color": "#4F8CFF", "short": "JT", "unit": "USD", "usd": True, "on_drop": "payout",
         "collect": collect_honeygain_jt, "fallback_creds": "honeygain", "lifetime": True,
         "dashboard": "https://app.jumptask.io/", "min_payout": None,
         "fields": [
@@ -450,7 +454,7 @@ PLATFORMS = {
         "hint": "Eigener Honeygain-Login für das Konto im JumpTask-Modus. Leer lassen, wenn du nur EIN Honeygain-Konto hast – dann wird der normale Honeygain-Zugang benutzt.",
     },
     "earnapp": {
-        "name": "EarnApp", "color": "#3fb68b", "unit": "USD", "usd": True, "on_drop": "payout",
+        "name": "EarnApp", "color": "#34C38F", "short": "EA", "unit": "USD", "usd": True, "on_drop": "payout",
         "collect": collect_earnapp, "dashboard": "https://earnapp.com/dashboard", "min_payout": 10.0,
         "fields": [
             {"key": "oauth_token", "label": "oauth-refresh-token", "type": "password", "required": True},
@@ -459,7 +463,7 @@ PLATFORMS = {
         "hint": "earnapp.com einloggen → F12 → Anwendung/Speicher → Cookies → oauth-refresh-token kopieren.",
     },
     "grass": {
-        "name": "Grass", "color": "#a3e635", "unit": "Punkte", "usd": None, "on_drop": "reset",
+        "name": "Grass", "color": "#86EFAC", "short": "GR", "unit": "Punkte", "usd": None, "on_drop": "reset",
         "collect": collect_grass, "dashboard": "https://app.grass.io/dashboard", "min_payout": None,
         "fields": [
             {"key": "access_token", "label": "Access-Token", "type": "password", "required": True},
@@ -467,7 +471,7 @@ PLATFORMS = {
         "hint": "app.grass.io einloggen → F12 → Anwendung → Lokaler Speicher → https://app.grass.io → Wert von 'accessToken' (bzw. 'token') kopieren. Grass zahlt Punkte, keinen festen Dollarbetrag.",
     },
     "bytelixir": {
-        "name": "Bytelixir", "color": "#8b5cf6", "unit": "USD", "usd": True, "on_drop": "payout",
+        "name": "Bytelixir", "color": "#A78BFA", "short": "BX", "unit": "USD", "usd": True, "on_drop": "payout",
         "collect": collect_bytelixir, "dashboard": "https://dash.bytelixir.com/", "min_payout": None,
         "fields": [
             {"key": "session", "label": "bytelixir_session", "type": "password", "required": False},
@@ -477,7 +481,7 @@ PLATFORMS = {
         "hint": "dash.bytelixir.com mit 'Remember Me' einloggen → F12 → Anwendung → Cookies → https://dash.bytelixir.com → die drei Werte kopieren.",
     },
     "duinocoin": {
-        "name": "Duino-Coin", "color": "#f97316", "unit": "DUCO", "usd": "price", "on_drop": "payout",
+        "name": "Duino-Coin", "color": "#FB923C", "short": "DC", "unit": "DUCO", "usd": "price", "on_drop": "payout",
         "collect": collect_duinocoin, "dashboard": "https://wallet.duinocoin.com/", "min_payout": None,
         "fields": [
             {"key": "username", "label": "Duino-Coin-Benutzername", "type": "text", "required": True},
@@ -485,7 +489,7 @@ PLATFORMS = {
         "hint": "Nur der Benutzername – Duino-Coin-Kontostände sind öffentlich, es wird kein Passwort gebraucht. Zeigt auch deine aktiven Miner (z. B. ESP32) und die Hashrate.",
     },
     "pawns": {
-        "name": "Pawns.app", "color": "#ec4899", "unit": "USD", "usd": True, "on_drop": "payout",
+        "name": "Pawns.app", "color": "#F472B6", "short": "PA", "unit": "USD", "usd": True, "on_drop": "payout",
         "collect": collect_pawns, "dashboard": "https://dashboard.pawns.app/", "min_payout": 5.0,
         "fields": [
             {"key": "email", "label": "E-Mail", "type": "email", "required": True},
@@ -494,7 +498,7 @@ PLATFORMS = {
         "hint": "Gleiche Daten wie auf pawns.app. Bei Google-Login vorher ein Passwort setzen.",
     },
     "earnfm": {
-        "name": "Earn.fm", "color": "#06b6d4", "unit": "USD", "usd": True, "on_drop": "payout",
+        "name": "Earn.fm", "color": "#22D3EE", "short": "FM", "unit": "USD", "usd": True, "on_drop": "payout",
         "collect": collect_earnfm, "dashboard": "https://app.earn.fm/", "min_payout": None,
         "fields": [
             {"key": "email", "label": "E-Mail", "type": "email", "required": True},
@@ -503,7 +507,7 @@ PLATFORMS = {
         "hint": "Gleiche Daten wie auf app.earn.fm (Login mit E-Mail und Passwort).",
     },
     "wipter": {
-        "name": "Wipter", "color": "#eab308", "unit": "USD", "usd": True, "on_drop": "payout",
+        "name": "Wipter", "color": "#FACC15", "short": "WI", "unit": "USD", "usd": True, "on_drop": "payout",
         "collect": None, "manual": True, "dashboard": "https://wipter.com/", "min_payout": None,
         "fields": [
             {"key": "balance", "label": "Aktueller Kontostand in $", "type": "text", "required": True},

@@ -68,7 +68,7 @@ def buckets(view: str, today: dt.date, first: dt.date | None):
     return out
 
 
-def compute(view: str = "day") -> dict:
+def compute(view: str = "day", period: str = "week") -> dict:
     rows = db.snapshots()
     by_pf: dict[str, list] = defaultdict(list)
     for r in rows:
@@ -106,16 +106,41 @@ def compute(view: str = "day") -> dict:
         "d7": (today - dt.timedelta(days=6), tomorrow),
     }
 
+    # Vergleichszeitraum: gleich lange Strecke davor (z. B. Mo–Sa letzte Woche)
+    def _shift_month(d: dt.date, n: int) -> dt.date:
+        y, m = d.year, d.month + n
+        while m <= 0:
+            m += 12
+            y -= 1
+        last = (dt.date(y + (m == 12), m % 12 + 1, 1) - dt.timedelta(days=1)).day
+        return dt.date(y, m, min(d.day, last))
+
+    def _shift_year(d: dt.date) -> dt.date:
+        try:
+            return d.replace(year=d.year - 1)
+        except ValueError:  # 29. Februar
+            return d.replace(year=d.year - 1, day=28)
+
+    prev_periods = {
+        "today": (today - dt.timedelta(days=1), today),
+        "week": (periods["week"][0] - dt.timedelta(days=7), tomorrow - dt.timedelta(days=7)),
+        "month": (_shift_month(periods["month"][0], -1), _shift_month(today, -1) + dt.timedelta(days=1)),
+        "year": (_shift_year(periods["year"][0]), _shift_year(today) + dt.timedelta(days=1)),
+    }
+    elapsed = {"today": 1, "week": today.weekday() + 1, "month": today.day,
+               "year": today.timetuple().tm_yday}
+
     configured = db.configured_platforms()
     runs = db.last_runs()
     platforms = []
-    totals = {k: 0.0 for k in ("balance", "today", "week", "month", "year", "all", "forecast")}
+    totals = {k: 0.0 for k in ("balance", "today", "week", "month", "year", "all", "forecast", "paid_out",
+                               "prev_today", "prev_week", "prev_month", "prev_year")}
     for pf, meta in PLATFORMS.items():
         pts = by_pf.get(pf, [])
         fac = usd_factor(pf)
         bal = pts[-1][1] if pts else None
         p = {
-            "id": pf, "name": meta["name"], "color": meta["color"], "unit": meta["unit"],
+            "id": pf, "name": meta["name"], "color": meta["color"], "unit": meta["unit"], "short": meta["short"],
             "dashboard": meta["dashboard"],
             "configured": pf in configured or (meta.get("fallback_creds") in configured and bool(pts))
                           or (bool(meta.get("manual")) and bool(pts)),
@@ -127,6 +152,10 @@ def compute(view: str = "day") -> dict:
         }
         for k, (s, e) in periods.items():
             p[k] = period_sum(pf, s, e)
+        for k, (s, e) in prev_periods.items():
+            p["prev_" + k] = period_sum(pf, s, e)
+        p["sel"] = p.get(period, 0.0)
+        p["spark"] = [daily.get(pf, {}).get(today - dt.timedelta(days=i), 0.0) for i in range(13, -1, -1)]
         p["forecast"] = p["d7"] / 7 * 30
         p["progress"] = min(1.0, (bal or 0) / meta["min_payout"]) if meta["min_payout"] else None
         try:
@@ -136,7 +165,8 @@ def compute(view: str = "day") -> dict:
         if fac is not None and p["configured"]:
             if not meta.get("lifetime"):  # JumpTask: Summe aller Einnahmen, kein Guthaben
                 totals["balance"] += (bal or 0) * fac
-            for k in ("today", "week", "month", "year", "all", "forecast"):
+            for k in ("today", "week", "month", "year", "all", "forecast", "paid_out",
+                      "prev_today", "prev_week", "prev_month", "prev_year"):
                 totals[k] += p[k] * fac
         platforms.append(p)
 
@@ -155,7 +185,41 @@ def compute(view: str = "day") -> dict:
         for pf, pts in by_pf.items() if pf in PLATFORMS and usd_factor(pf) is not None
     }
     payouts.sort(key=lambda x: x["ts"], reverse=True)
+
+    if period not in periods:
+        period = "week"
+    cur, prev = totals[period], totals["prev_" + period]
+    growth = ((cur / prev - 1) * 100) if prev > 0.0005 else None
+    usd_pfs = [p for p in platforms if p["fac"] is not None and p["configured"]]
+    share = [{"id": p["id"], "color": p["color"], "name": p["name"], "value": p["sel"] * p["fac"]}
+             for p in usd_pfs if p["sel"] > 0]
+    hero_spark = []
+    for i in range(29, -1, -1):
+        d = today - dt.timedelta(days=i)
+        hero_spark.append(sum(daily.get(p["id"], {}).get(d, 0.0) * p["fac"] for p in usd_pfs))
+
+    # Aktivitäts-Feed: letzte Einnahmen, Auszahlungen, Fehler
+    feed = []
+    for p in platforms:
+        pts = by_pf.get(p["id"], [])
+        if len(pts) >= 2 and pts[-1][1] > pts[-2][1]:
+            feed.append({"ts": pts[-1][0], "pf": p["id"], "name": p["name"], "kind": "earn",
+                         "amount": pts[-1][1] - pts[-2][1], "unit": p["unit"]})
+        r = p["run"]
+        if r is not None and not r["ok"] and p["configured"]:
+            feed.append({"ts": r["ts"], "pf": p["id"], "name": p["name"], "kind": "error", "text": r["message"]})
+    for x in payouts[:5]:
+        feed.append({"ts": x["ts"], "pf": x["platform"], "name": PLATFORMS[x["platform"]]["name"], "kind": "payout",
+                     "amount": x["amount"], "unit": PLATFORMS[x["platform"]]["unit"]})
+    feed.sort(key=lambda f: f["ts"], reverse=True)
+
     return {
+        "period": period,
+        "growth": growth,
+        "avg_day": cur / elapsed[period],
+        "share": share,
+        "hero_spark": hero_spark,
+        "feed": feed[:6],
         "platforms": platforms,
         "chart": chart,
         "balance_series": balance_series,
