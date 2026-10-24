@@ -170,3 +170,113 @@ def line_chart(series: dict[str, list], width=860, height=200) -> Markup:
                    f'r="3.5" fill="{PLATFORMS[pf]["color"]}"><title>{PLATFORMS[pf]["name"]}: {money(b)}</title></circle>')
     out.append("</svg>")
     return Markup("".join(out))
+
+
+# --- Detailseite einer Plattform -------------------------------------------
+def _short(v: float, unit: str) -> str:
+    """Kurze Achsenbeschriftung in der Einheit der Plattform."""
+    if unit == "USD":
+        return money(v) if v < 100 else f"${v:,.0f}"
+    if abs(v) >= 1000:
+        return f"{v / 1000:.1f}k".replace(".0k", "k")
+    return f"{v:.2f}" if abs(v) < 10 else f"{v:.0f}"
+
+
+def _grad(gid: str, color: str, top: float, bottom: float) -> str:
+    return (f'<defs><linearGradient id="{gid}" x1="0" y1="0" x2="0" y2="1">'
+            f'<stop offset="0" stop-color="{color}" stop-opacity="{top}"/>'
+            f'<stop offset="1" stop-color="{color}" stop-opacity="{bottom}"/></linearGradient></defs>')
+
+
+def platform_bars(bars: list[dict], color: str, unit: str, avg: float, width=860, height=280) -> Markup:
+    """Säulen einer Plattform mit Durchschnittslinie; der aktuelle Zeitraum leuchtet."""
+    pad_l, pad_r, pad_t, pad_b = 56, 8, 14, 28
+    w, h = width - pad_l - pad_r, height - pad_t - pad_b
+    vmax = _nice_max(max((b["value"] for b in bars), default=0))
+    n = len(bars) or 1
+    slot = w / n
+    bw = max(4.0, min(slot * 0.64, 48))
+    out = [f'<svg viewBox="0 0 {width} {height}" class="chart" role="img" aria-label="Einnahmen je Zeitraum">',
+           _grad("pbar", color, 1, 0.55)]
+    for i in range(5):
+        y = pad_t + h - h * i / 4
+        out.append(f'<line x1="{pad_l}" x2="{width - pad_r}" y1="{y:.1f}" y2="{y:.1f}" class="grid"/>')
+        out.append(f'<text x="{pad_l - 10}" y="{y + 4:.1f}" class="axis" text-anchor="end">{escape(_short(vmax * i / 4, unit))}</text>')
+    for i, b in enumerate(bars):
+        x = pad_l + i * slot + (slot - bw) / 2
+        last = i == n - 1
+        if b["value"] > 0:
+            bh = max(h * b["value"] / vmax, 3)
+            op = "1" if last else "0.72"
+            out.append(f'<rect x="{x:.1f}" y="{pad_t + h - bh:.1f}" width="{bw:.1f}" height="{bh:.1f}" rx="{min(6, bw / 2):.1f}" '
+                       f'fill="url(#pbar)" fill-opacity="{op}"/>')
+        else:
+            out.append(f'<rect x="{x:.1f}" y="{pad_t + h - 3:.1f}" width="{bw:.1f}" height="3" rx="1.5" class="nobar"/>')
+        tip = f'{b["label"]}: {amount(b["value"], unit)}' if not b.get("future") else f'{b["label"]}: noch keine Daten'
+        out.append(f'<rect x="{pad_l + i * slot:.1f}" y="{pad_t}" width="{slot:.1f}" height="{h}" class="hit">'
+                   f'<title>{escape(tip)}</title></rect>')
+        if n <= 14 or i % max(1, n // 10) == 0 or last:
+            out.append(f'<text x="{pad_l + i * slot + slot / 2:.1f}" y="{height - 8}" class="axis{" now" if last else ""}" '
+                       f'text-anchor="middle">{escape(b["label"])}</text>')
+    if avg > 0:
+        y = pad_t + h - h * avg / vmax
+        out.append(f'<line x1="{pad_l}" x2="{width - pad_r}" y1="{y:.1f}" y2="{y:.1f}" class="avgline"/>')
+        out.append(f'<text x="{width - pad_r - 4}" y="{y - 6:.1f}" class="avglbl" text-anchor="end">Ø {escape(amount(avg, unit))}</text>')
+    out.append("</svg>")
+    return Markup("".join(out))
+
+
+def balance_area(points: list[tuple], color: str, unit: str, width=860, height=220) -> Markup:
+    """Kontostand-Verlauf als Fläche."""
+    if len(points) < 2:
+        return Markup('<p class="muted small">Noch zu wenig Messpunkte für den Verlauf.</p>')
+    pad_l, pad_r, pad_t, pad_b = 56, 10, 14, 26
+    w, h = width - pad_l - pad_r, height - pad_t - pad_b
+    t0, t1 = points[0][0], points[-1][0]
+    t1 = t1 if t1 > t0 else t0 + 1
+    vmax = _nice_max(max(b for _, b in points))
+    X = lambda t: pad_l + w * (t - t0) / (t1 - t0)  # noqa: E731
+    Y = lambda b: pad_t + h - h * max(b, 0) / vmax  # noqa: E731
+    out = [f'<svg viewBox="0 0 {width} {height}" class="chart" role="img" aria-label="Kontostand-Verlauf">',
+           _grad("parea", color, 0.42, 0)]
+    for i in range(5):
+        y = pad_t + h - h * i / 4
+        out.append(f'<line x1="{pad_l}" x2="{width - pad_r}" y1="{y:.1f}" y2="{y:.1f}" class="grid"/>')
+        out.append(f'<text x="{pad_l - 10}" y="{y + 4:.1f}" class="axis" text-anchor="end">{escape(_short(vmax * i / 4, unit))}</text>')
+    for k in range(5):
+        t = t0 + (t1 - t0) * k / 4
+        anchor = "start" if k == 0 else "end" if k == 4 else "middle"
+        out.append(f'<text x="{X(t):.1f}" y="{height - 8}" class="axis" text-anchor="{anchor}">'
+                   f'{dt.datetime.fromtimestamp(t, TZ).strftime("%d.%m.")}</text>')
+    line = " ".join(f"{X(t):.1f},{Y(b):.1f}" for t, b in points)
+    out.append(f'<polygon points="{X(t0):.1f},{pad_t + h} {line} {X(points[-1][0]):.1f},{pad_t + h}" fill="url(#parea)"/>')
+    out.append(f'<polyline points="{line}" fill="none" stroke="{color}" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>')
+    t, b = points[-1]
+    out.append(f'<circle cx="{X(t):.1f}" cy="{Y(b):.1f}" r="9" fill="{color}" fill-opacity="0.25"/>')
+    out.append(f'<circle cx="{X(t):.1f}" cy="{Y(b):.1f}" r="4.5" fill="{color}" stroke="#fff" stroke-width="1.5">'
+               f'<title>Aktuell: {escape(amount(b, unit))}</title></circle>')
+    out.append("</svg>")
+    return Markup("".join(out))
+
+
+def weekday_bars(values: list[dict], color: str, unit: str, width=320, height=150) -> Markup:
+    """Ø Einnahmen je Wochentag – zeigt, an welchen Tagen am meisten reinkommt."""
+    pad_b = 22
+    h = height - pad_b - 18
+    vmax = max((v["value"] for v in values), default=0) or 1
+    top = max(range(len(values)), key=lambda i: values[i]["value"]) if values else -1
+    slot = width / (len(values) or 1)
+    bw = min(slot * 0.58, 30)
+    out = [f'<svg viewBox="0 0 {width} {height}" class="chart wd" role="img" aria-label="Durchschnitt je Wochentag">']
+    for i, v in enumerate(values):
+        x = i * slot + (slot - bw) / 2
+        bh = max(h * v["value"] / vmax, 3)
+        best = i == top and v["value"] > 0
+        out.append(f'<rect x="{x:.1f}" y="{18 + h - bh:.1f}" width="{bw:.1f}" height="{bh:.1f}" rx="{bw / 2:.1f}" '
+                   f'fill="{color}" fill-opacity="{1 if best else 0.38}"><title>{v["label"]}: Ø {escape(amount(v["value"], unit))}</title></rect>')
+        if best:
+            out.append(f'<text x="{x + bw / 2:.1f}" y="{18 + h - bh - 6:.1f}" class="wdtop" text-anchor="middle">'
+                       f'{escape(_short(v["value"], unit))}</text>')
+        out.append(f'<text x="{x + bw / 2:.1f}" y="{height - 4}" class="axis{" now" if best else ""}" text-anchor="middle">{v["label"]}</text>')
+    out.append("</svg>")
+    return Markup("".join(out))

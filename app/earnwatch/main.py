@@ -497,6 +497,31 @@ async def dashboard(request: Request):
     })
 
 
+async def platform_page(request: Request):
+    user = current_user(request)
+    if not user:
+        return redirect("/login" if db.user_count() else "/setup")
+    pf = request.path_params["pf"]
+    if pf not in PLATFORMS:   # nur bekannte Plattformen, alles andere -> 404
+        return PlainTextResponse("Nicht gefunden", status_code=404)
+    view = request.query_params.get("view", "day")
+    if view not in ("day", "week", "month", "year"):
+        view = "day"
+    period = request.query_params.get("period", "week")
+    if period not in ("today", "week", "month", "year"):
+        period = "week"
+    det = stats.platform_detail(pf, view, period)
+    p = det["p"]
+    return render(request, "platform.html", {
+        "user": user, "x": det, "p": p, "view": view, "period": period,
+        "bars_svg": charts.platform_bars(det["bars"], p["color"], p["unit"], det["avg"]),
+        "area_svg": charts.balance_area(det["balance"], p["color"], p["unit"]),
+        "wd_svg": charts.weekday_bars(det["weekday"], p["color"], p["unit"]),
+        "miners_svg": charts.miners(p["info"].get("rigs", [])) if pf == "duinocoin" and p["configured"] else None,
+        "others": [(k, v["name"], v["short"]) for k, v in PLATFORMS.items()],
+    })
+
+
 async def collect_now(request: Request):
     global _last_manual
     if not current_user(request):
@@ -586,6 +611,8 @@ async def settings_save(request: Request):
             flash(request, "Bitte einen Betrag wie 3,47 eingeben.", "err")
         if form.get("back") == "/":
             return redirect("/")
+        if form.get("back") == "detail":   # feste Ziele, keine frei wählbare Weiterleitung
+            return redirect(f"/p/{what}")
     elif what in PLATFORMS:
         meta = PLATFORMS[what]
         data, missing = {}, []
@@ -687,6 +714,7 @@ routes = [
     Route("/login/2fa", login_2fa, methods=["GET", "POST"]),
     Route("/2fa/setup", twofa_setup, methods=["GET", "POST"]),
     Route("/2fa/{action:str}", twofa_manage, methods=["POST"]),
+    Route("/p/{pf:str}", platform_page),
     Route("/collect", collect_now, methods=["POST"]),
     Route("/settings", settings_page),
     Route("/settings/{what:str}", settings_save, methods=["POST"]),

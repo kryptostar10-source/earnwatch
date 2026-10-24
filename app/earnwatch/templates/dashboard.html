@@ -93,8 +93,8 @@
         {% endfor %}
       </nav>
     </div>
-    {% if d.has_data %}<div class="chartwrap">{{ bar_svg }}</div>{% else %}<p class="muted">Noch keine Daten – nach den ersten Abrufen erscheint hier das Diagramm.</p>{% endif %}
-    <ul class="legend">{% for p in active if p.fac is not none %}<li><span class="dot" data-pf="{{ p.id }}"></span>{{ p.name }}</li>{% endfor %}</ul>
+    {% if d.has_data %}<div class="chartwrap end">{{ bar_svg }}</div>{% else %}<p class="muted">Noch keine Daten – nach den ersten Abrufen erscheint hier das Diagramm.</p>{% endif %}
+    <ul class="legend">{% for p in active if p.fac is not none %}<li><a href="/p/{{ p.id }}"><span class="dot" data-pf="{{ p.id }}"></span>{{ p.name }}</a></li>{% endfor %}</ul>
   </div>
 
   <div class="aside">
@@ -137,11 +137,13 @@
   {% for p in d.platforms %}
     <article class="card sm tile">
       <header>
+        <a class="tilelink" href="/p/{{ p.id }}" aria-label="{{ p.name }} – Details und Diagramme">
         <span class="badge" data-pf="{{ p.id }}">{{ p.short }}</span>
         <div class="ttl">
-          <b>{{ p.name }}</b>
+          <b>{{ p.name }} <span class="chev" aria-hidden="true">›</span></b>
           <span>{% if p.lifetime %}an JumpTask gesendet{% elif p.manual %}manuell eingetragen{% elif p.info.modus is defined %}Modus: {{ p.info.modus }}{% elif p.unit == 'DUCO' and p.fac %}≈ {{ money(p.balance * p.fac) if p.balance is not none else '–' }}{% elif p.unit == 'Punkte' %}Punkte{% if p.info.art is defined %} · {{ p.info.art }}{% endif %}{% else %}{{ p.unit }}{% endif %}</span>
         </div>
+        </a>
         {% if not p.configured %}<span class="pill dim">aus</span>
         {% elif p.run and not p.run.ok %}<span class="pill err" title="{{ p.run.message }}">Fehler</span>
         {% elif p.manual %}<span class="pill warn">manuell</span>
@@ -195,7 +197,7 @@
     <tbody>
     {% for p in active %}
       <tr>
-        <td><span class="dot" data-pf="{{ p.id }}"></span> {{ p.name }}</td>
+        <td><a class="rowlink" href="/p/{{ p.id }}"><span class="dot" data-pf="{{ p.id }}"></span> {{ p.name }}</a></td>
         {% for k in ['today','week','month','year','all'] %}
         <td class="num">{{ amount(p[k], p.unit) }}{% if p.unit != 'USD' and p.fac %}<small>{{ money(p[k]*p.fac) }}</small>{% endif %}</td>
         {% endfor %}

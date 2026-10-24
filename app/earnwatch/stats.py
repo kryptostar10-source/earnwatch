@@ -246,4 +246,49 @@ def compute(view: str = "day", period: str = "week") -> dict:
         "totals": totals,
         "has_data": bool(rows),
         "points_platforms": [p for p in platforms if p["fac"] is None and p["configured"]],
+        "_daily": daily, "_by_pf": by_pf, "_all_payouts": payouts, "_first_day": first_day, "_today": today,
+    }
+
+
+WEEKDAYS = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"]
+
+
+def platform_detail(pf: str, view: str = "day", period: str = "week") -> dict:
+    """Alles für die Detailseite einer einzelnen Plattform (Beträge in ihrer eigenen Einheit)."""
+    base = compute(view, period)
+    p = next(x for x in base["platforms"] if x["id"] == pf)
+    daily = base["_daily"].get(pf, {})
+    pts = base["_by_pf"].get(pf, [])
+    today = base["_today"]
+    first = min(daily) if daily else (day_of(pts[0][0]) if pts else None)
+
+    bars = []
+    for label, s, e in buckets(view, today, first):
+        v = sum(val for k, val in daily.items() if s <= k < e)
+        bars.append({"label": label, "value": v, "start": s, "future": first is None or e <= first})
+    measured = [b["value"] for b in bars if not b["future"]]
+    avg = sum(measured) / len(measured) if measured else 0.0
+
+    last30 = [(today - dt.timedelta(days=i)) for i in range(29, -1, -1)]
+    best = max(((d, v) for d, v in daily.items()), key=lambda x: x[1], default=None)
+    active_days = sum(1 for d in last30 if daily.get(d, 0) > 0)
+
+    # Ø je Wochentag über die letzten 8 Wochen
+    wd_sum, wd_n = [0.0] * 7, [0] * 7
+    for i in range(56):
+        d = today - dt.timedelta(days=i)
+        if first and d >= first:
+            wd_sum[d.weekday()] += daily.get(d, 0.0)
+            wd_n[d.weekday()] += 1
+    weekday = [{"label": WEEKDAYS[i], "value": (wd_sum[i] / wd_n[i]) if wd_n[i] else 0.0} for i in range(7)]
+
+    since = today - dt.timedelta(days=90)
+    balance = [(t, b) for t, b in pts if day_of(t) >= since]
+    payouts = [x for x in base["_all_payouts"] if x["platform"] == pf]
+    cur, prev = p.get(period, 0.0), p.get("prev_" + period, 0.0)
+    return {
+        "p": p, "bars": bars, "avg": avg, "best": best, "active_days": active_days,
+        "weekday": weekday, "balance": balance, "payouts": payouts[:25],
+        "growth": ((cur / prev - 1) * 100) if prev > 0 else None,
+        "since": first, "measurements": len(pts),
     }
