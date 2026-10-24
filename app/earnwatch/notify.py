@@ -24,7 +24,7 @@ log = logging.getLogger("earnwatch.notify")
 EVENTS = {
     "payout": "Auszahlung möglich",
     "error": "Abruf fehlgeschlagen / Login abgelaufen",
-    "miner": "Duino-Miner offline",
+    "miner": "Geräte / Duino-Miner offline",
     "login": "Neue Anmeldung bei EarnWatch",
     "security": "Sicherheits-Änderungen (Passwort, 2FA)",
     "summary": "Tageszusammenfassung",

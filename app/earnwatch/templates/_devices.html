@@ -1,0 +1,13 @@
+{# Geräte-Anzeige: "3 / 4 Geräte online" #}
+{% macro devchip(info, big=false) -%}
+{%- if info.geraete is defined -%}
+{%- set on = info.online if info.online is defined else none -%}
+{%- set cls = 'dim' if on is none else ('ok' if on == info.geraete and on > 0 else ('err' if on == 0 else 'warn')) -%}
+<span class="devchip {{ cls }}{{ ' big' if big }}" title="Geräte laut Anbieter">
+<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg>
+{%- if on is none %}{{ info.geraete }} Gerät{{ 'e' if info.geraete != 1 }}
+{%- elif on == info.geraete %}{{ on }} online
+{%- else %}{{ on }} / {{ info.geraete }} online{% endif -%}
+</span>
+{%- endif -%}
+{%- endmacro %}

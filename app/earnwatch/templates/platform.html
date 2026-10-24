@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_devices.html" import devchip %}
 {% block title %}{{ p.name }} · EarnWatch{% endblock %}
 {% block content %}
 {% set plabels = {'today':'Heute','week':'Woche','month':'Monat','year':'Jahr'} %}
@@ -25,6 +26,7 @@
     {% elif p.run and not p.run.ok %}<span class="pill err">Fehler</span>
     {% elif p.manual %}<span class="pill warn">manuell</span>
     {% else %}<span class="pill ok">aktiv</span>{% endif %}
+    {% if p.configured %}{{ devchip(p.info, true) }}{% endif %}
   </div>
   <div class="pagehead-actions">
     <nav class="seg" aria-label="Zeitraum">
@@ -32,6 +34,14 @@
       <a href="{{ q(k, view) }}" {% if period == k %}aria-current="page"{% endif %}>{{ plabels[k] }}</a>
       {% endfor %}
     </nav>
+    {% if p.configured and not p.manual %}
+    <form method="post" action="/collect">
+      <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="back" value="/p/{{ p.id }}">
+      <button class="btn primary" {% if collecting %}disabled{% endif %}>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg>
+        Abrufen</button>
+    </form>
+    {% endif %}
     <a class="btn" href="{{ p.dashboard }}" rel="noopener noreferrer" target="_blank">Zum Anbieter ↗</a>
   </div>
 </header>
@@ -120,6 +130,7 @@
         <li><span>Bester Tag</span><b>{% if x.best %}{{ amount(x.best[1], p.unit) }} <small>{{ x.best[0].strftime('%d.%m.') }}</small>{% else %}–{% endif %}</b></li>
         <li><span>Aktive Tage (30 T.)</span><b>{{ x.active_days }} / 30</b></li>
         <li><span>Gesamt verdient</span><b>{{ amount(p.all, p.unit) }}</b></li>
+        {% if p.configured and p.info.geraete is defined %}<li><span>Geräte</span><b>{% if p.info.online is defined %}{{ p.info.online }} online{% if p.info.online != p.info.geraete %} · {{ p.info.geraete - p.info.online }} offline{% endif %}{% else %}{{ p.info.geraete }}{% endif %}</b></li>{% endif %}
         <li><span>Letzter Abruf</span><b>{{ p.last_ts|ago if p.last_ts else '–' }}</b></li>
       </ul>
     </div>

@@ -103,6 +103,53 @@ def _cookie(name: str, value: str, domain: str) -> http.cookiejar.Cookie:
     )
 
 
+# --- Geräte zählen (für „x von y Geräten online“) -------------------------
+_ONLINE_WORDS = {"active", "online", "running", "connected", "streaming", "working", "on"}
+
+
+def _device_list(data) -> list:
+    """Holt die Geräteliste aus verschiedenen Antwortformen ([..], {data:[..]}, {data:{items:[..]}} …)."""
+    for _ in range(3):
+        if isinstance(data, list):
+            return [d for d in data if isinstance(d, dict)][:1000]
+        if not isinstance(data, dict):
+            return []
+        data = next((data[k] for k in ("data", "devices", "items", "results", "list") if k in data), None)
+    return []
+
+
+def _is_online(d: dict) -> bool | None:
+    for k in ("online", "is_online", "isOnline", "active", "is_active", "isActive", "connected"):
+        if isinstance(d.get(k), bool):
+            return d[k]
+    st = d.get("status") or d.get("state") or d.get("connection_status")
+    if isinstance(st, str):
+        return st.strip().lower() in _ONLINE_WORDS
+    if isinstance(st, bool):
+        return st
+    return None
+
+
+def _device_info(devices: list, online: int | None = None) -> dict:
+    """Nur Zahlen speichern – keine Gerätenamen oder IP-Adressen."""
+    total = len(devices)
+    if online is None:
+        flags = [_is_online(d) for d in devices]
+        online = sum(1 for f in flags if f) if any(f is not None for f in flags) else None
+    out = {"geraete": total}
+    if online is not None:
+        out["online"] = max(0, min(int(online), total))
+    return out
+
+
+def _safe_devices(fn) -> dict:
+    """Geräte-Abruf ist ein Extra: Fehler dort dürfen den Kontostand nie verhindern."""
+    try:
+        return fn() or {}
+    except Exception:  # noqa: BLE001
+        return {}
+
+
 # --- Honeygain ------------------------------------------------------------
 HG_API = "https://dashboard.honeygain.com/api"
 _hg_token_cache: dict[str, str] = {}
@@ -197,7 +244,12 @@ def collect_honeygain(creds: dict) -> Result:
         if cents is None:
             raise CollectError("Feld usd_cents fehlt – API geändert?")
         hist = _hg_history(get, "/v1/earnings/stats", "hg:" + creds.get("email", ""))
-        return Result("honeygain", round(float(cents) / 100, 4), info=mode(), history=hist)
+
+        def devices():
+            st, raw = get("/v2/devices?page=1&per_page=100")
+            return _device_info(_device_list(_json(raw))) if st == 200 else {}
+        return Result("honeygain", round(float(cents) / 100, 4), info={**mode(), **_safe_devices(devices)},
+                      history=hist)
     except CollectError as e:
         _hg_token_cache.pop(creds.get("email", ""), None)
         return Result("honeygain", None, str(e))
@@ -254,7 +306,23 @@ def collect_earnapp(creds: dict) -> Result:
         bal = data.get("balance")
         if bal is None:
             raise CollectError("Feld balance fehlt – API geändert?")
-        return Result("earnapp", round(float(bal), 4))
+
+        def devices():
+            st, raw, _ = _request(op, f"{EA_API}/devices?{q}", headers=hdr)
+            if st != 200:
+                return {}
+            devs = _device_list(_json(raw))
+            if not devs:
+                return {"geraete": 0}
+            lst = [{"uuid": str(d.get("uuid", ""))[:100], "appid": str(d.get("appid") or "node_earnapp.com")[:60]}
+                   for d in devs if d.get("uuid")]
+            st, raw, _ = _request(op, f"{EA_API}/device_statuses?{q}", method="POST", headers=hdr, body={"list": lst})
+            if st != 200:
+                return _device_info(devs)
+            stat = _json(raw).get("statuses")
+            online = sum(1 for v in stat.values() if isinstance(v, dict) and v.get("online")) if isinstance(stat, dict) else None
+            return _device_info(devs, online)
+        return Result("earnapp", round(float(bal), 4), info=_safe_devices(devices))
     except CollectError as e:
         return Result("earnapp", None, str(e))
 
@@ -280,7 +348,13 @@ def collect_grass(creds: dict) -> Result:
         user = _json(raw).get("result", {}).get("data", {}) or {}
         settled = float(user.get("totalPoints") or 0)
         if settled > 0:
-            return Result("grass", round(settled, 2), info={"art": "abgerechnet"})
+            def devices():
+                st, raw, _ = _request(op, f"{GRASS_API}/activeDevices", headers=hdr)
+                if st != 200:
+                    return {}
+                n = len(_device_list((_json(raw).get("result") or {})))
+                return {"geraete": n, "online": n}
+            return Result("grass", round(settled, 2), info={"art": "abgerechnet", **_safe_devices(devices)})
 
         # Laufende Epoche: Punkte aus Geräte-Laufzeit schätzen (wie das Grass-Dashboard)
         st, raw, _ = _request(op, f"{GRASS_API}/activeDevices", headers=hdr)
@@ -294,8 +368,8 @@ def collect_grass(creds: dict) -> Result:
             up, score, mult = float(d.get("aggUptime", 0)), float(d.get("ipScore", 0)), float(d.get("multiplier", 1))
             if up > 0 and score > 0:
                 pts += up / 3600 * 50 * (score / 100) * mult
-        return Result("grass", round(pts, 2), info={"art": "geschätzt (laufende Epoche)",
-                                                     "geraete": len(result["data"] or [])})
+        n = len(result["data"] or [])
+        return Result("grass", round(pts, 2), info={"art": "geschätzt (laufende Epoche)", "geraete": n, "online": n})
     except CollectError as e:
         return Result("grass", None, str(e))
 
@@ -382,7 +456,8 @@ def collect_duinocoin(creds: dict) -> Result:
             name = str(m.get("identifier") or m.get("software") or "Miner")[:24]
             rigs.append({"name": name, "hashrate": float(m.get("hashrate") or 0)})
         return Result("duinocoin", round(float(bal), 6), price_usd=price,
-                      info={"miner": len(miners), "hashrate": hashrate, "rigs": rigs})
+                      info={"miner": len(miners), "hashrate": hashrate, "rigs": rigs,
+                            "geraete": len(miners), "online": len(miners)})
     except CollectError as e:
         return Result("duinocoin", None, str(e))
 
@@ -428,7 +503,12 @@ def collect_pawns(creds: dict) -> Result:
         bal = _json(raw).get("balance")
         if bal is None:
             raise CollectError("Feld balance fehlt – API geändert?")
-        return Result("pawns", round(float(bal), 4))
+
+        def devices():
+            st, raw, _ = _request(op, f"{PAWNS_API}/users/me/devices?page=1&items_per_page=100",
+                                  headers={"Authorization": f"Bearer {token}"})
+            return _device_info(_device_list(_json(raw))) if st == 200 else {}
+        return Result("pawns", round(float(bal), 4), info=_safe_devices(devices))
     except CollectError as e:
         _pawns_token_cache.pop(email, None)
         return Result("pawns", None, str(e))

@@ -189,6 +189,14 @@ def compute(view: str = "day", period: str = "week") -> dict:
                 totals[k] += p[k] * fac
         platforms.append(p)
 
+    dev = {"online": 0, "total": 0, "known": False}
+    for p in platforms:
+        inf = p["info"] if p["configured"] else {}
+        if isinstance(inf.get("geraete"), int):
+            dev["known"] = True
+            dev["total"] += inf["geraete"]
+            dev["online"] += inf["online"] if isinstance(inf.get("online"), int) else inf["geraete"]
+
     chart = []
     for label, s, e in buckets(view, today, first_day):
         vals = {}
@@ -234,6 +242,7 @@ def compute(view: str = "day", period: str = "week") -> dict:
 
     return {
         "period": period,
+        "devices": dev,
         "growth": growth,
         "avg_day": cur / elapsed[period],
         "share": share,

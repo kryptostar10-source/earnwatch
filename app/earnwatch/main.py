@@ -135,10 +135,19 @@ def current_user(request: Request):
     if not user or request.session.get("ver") != user["session_ver"]:
         request.session.clear()
         return None
-    limit = config.REMEMBER_DAYS * 86400 if request.session.get("long") else config.SESSION_HOURS * 3600
-    if time.time() - request.session.get("since", 0) > limit:
+    # Gleitendes Ablaufen: wer die Seite benutzt, bleibt angemeldet. Abgemeldet wird nach
+    # Inaktivität (12 h bzw. 30 Tage mit „Angemeldet bleiben“) und spätestens nach 7 / 90 Tagen.
+    now = time.time()
+    long_ = request.session.get("long")
+    idle = config.REMEMBER_DAYS * 86400 if long_ else config.SESSION_HOURS * 3600
+    absolute = (90 if long_ else 7) * 86400
+    since = request.session.get("since", 0)
+    seen = request.session.get("seen", since)
+    if now - seen > idle or now - since > absolute:
         request.session.clear()
         return None
+    if now - seen > 60:
+        request.session["seen"] = int(now)
     return user
 
 
@@ -147,6 +156,19 @@ def render(request: Request, name: str, ctx: dict | None = None, status: int = 2
     ctx["csrf"] = auth.csrf_token(request.session)
     ctx.setdefault("user", None)
     ctx["flash"] = request.session.pop("flash", None)
+    if ctx["user"] and name in ("dashboard.html", "platform.html"):
+        running = _collect_lock.locked() or any(not t.done() for t in _bg_tasks)
+        waiting = request.session.get("await_collect")
+        if running and waiting:
+            ctx["collecting"] = True   # Seite lädt sich per <meta refresh> neu, bis der Abruf fertig ist
+        elif waiting:
+            request.session.pop("await_collect", None)
+            try:
+                res = json.loads(db.get_setting("manual_result", "{}"))
+            except ValueError:
+                res = {}
+            if res.get("ts", 0) >= waiting and not ctx["flash"]:
+                ctx["flash"] = {"msg": str(res.get("msg", ""))[:400], "kind": res.get("kind") if res.get("kind") in ("ok", "warn", "err") else "ok"}
     if ctx["user"]:
         interval = max(15, int(db.get_setting("interval_min", str(config.INTERVAL_MIN_DEFAULT))))
         last = int(db.get_setting("last_collect_ts", "0") or 0)
@@ -255,7 +277,11 @@ async def setup(request: Request):
         form = await checked_form(request)
         if form is None:
             return forbidden()
-        if wait := auth.throttle.try_acquire(ip):
+        uname = form.get("username", "").strip()
+        # Bremse pro IP UND pro Benutzername: auch mit wechselnden (gefälschten) IP-Adressen
+        # bleiben es höchstens 5 Passwort-Versuche pro Konto in 15 Minuten.
+        if wait := (auth.throttle.try_acquire(ip)
+                    or auth.throttle.try_acquire("user:" + uname.lower()[:64], global_=False)):
             return render(request, "setup.html", {"error": f"Zu viele Versuche. Bitte {wait//60+1} Min. warten."}, 429)
         token = form.get("token", "")
         username = form.get("username", "").strip()
@@ -289,16 +315,21 @@ async def login(request: Request):
         form = await checked_form(request)
         if form is None:
             return forbidden()
-        if wait := auth.throttle.try_acquire(ip):
+        uname = form.get("username", "").strip()
+        # Bremse pro IP UND pro Benutzername: auch mit wechselnden (gefälschten) IP-Adressen
+        # bleiben es höchstens 5 Passwort-Versuche pro Konto in 15 Minuten.
+        if wait := (auth.throttle.try_acquire(ip)
+                    or auth.throttle.try_acquire("user:" + uname.lower()[:64], global_=False)):
             notify.send("security", "🚨 Viele fehlgeschlagene Logins",
                         f"Von IP {ip} wurde der Login gesperrt (zu viele falsche Passwörter).",
                         priority=4, tags=["rotating_light"], dedupe=f"lock:{ip}", dedupe_seconds=900)
             return render(request, "login.html", {"error": f"Zu viele Fehlversuche. Bitte {wait//60+1} Min. warten."}, 429)
-        user = db.get_user_by_name(form.get("username", "").strip())
+        user = db.get_user_by_name(uname)
         pw = form.get("password", "")
         stored = user["pw_hash"] if user else auth.DUMMY_HASH
         ok = await run_in_threadpool(auth.verify_password, pw, stored)
         if user and ok:
+            auth.throttle.success("user:" + uname.lower()[:64])
             request.session.clear()  # neue Session (gegen Session-Fixation)
             if db.totp_secret(user):
                 # Passwort stimmt – jetzt noch der zweite Faktor (max. 5 Minuten Zeit)
@@ -522,26 +553,50 @@ async def platform_page(request: Request):
     })
 
 
+_bg_tasks: set = set()
+
+
+async def _manual_collect():
+    """Läuft im Hintergrund – die Seite muss nicht 30 Sekunden auf alle Anbieter warten."""
+    try:
+        results = await collect_all()
+        if not results:
+            msg, kind = "Noch keine Zugangsdaten hinterlegt – siehe Einstellungen.", "warn"
+        elif bad := [r for r in results if not r.ok]:
+            msg, kind = " · ".join(f"{PLATFORMS[r.platform]['name']}: {r.message}" for r in bad), "err"
+        else:
+            msg, kind = "Kontostände aktualisiert.", "ok"
+    except Exception:
+        log.exception("Fehler beim manuellen Abruf")
+        msg, kind = "Abruf fehlgeschlagen – Details im Container-Log.", "err"
+    db.set_setting("manual_result", json.dumps({"ts": time.time(), "msg": msg[:400], "kind": kind}))
+
+
+def _back_target(form) -> str:
+    """Nur feste, eigene Ziele erlauben (keine offene Weiterleitung)."""
+    back = form.get("back") or "/"
+    if back.startswith("/p/") and back[3:] in PLATFORMS:
+        return back
+    return "/"
+
+
 async def collect_now(request: Request):
     global _last_manual
     if not current_user(request):
         return redirect("/login")
-    if await checked_form(request) is None:
+    form = await checked_form(request)
+    if form is None:
         return forbidden()
+    target = _back_target(form)
     if time.time() - _last_manual < 60:
         flash(request, "Bitte höchstens einmal pro Minute manuell abrufen.", "warn")
-        return redirect("/")
+        return redirect(target)
     _last_manual = time.time()
-    results = await collect_all()
-    if not results:
-        flash(request, "Noch keine Zugangsdaten hinterlegt – siehe Einstellungen.", "warn")
-    else:
-        bad = [r for r in results if not r.ok]
-        if bad:
-            flash(request, " · ".join(f"{PLATFORMS[r.platform]['name']}: {r.message}" for r in bad), "err")
-        else:
-            flash(request, "Kontostände aktualisiert.")
-    return redirect("/")
+    request.session["await_collect"] = int(time.time())
+    task = asyncio.create_task(_manual_collect())
+    _bg_tasks.add(task)
+    task.add_done_callback(_bg_tasks.discard)
+    return redirect(target)
 
 
 async def settings_page(request: Request):
@@ -733,7 +788,9 @@ app = Starlette(
             secret_key=config.session_secret(),
             session_cookie="ew_session",
             max_age=max(config.SESSION_HOURS * 3600, config.REMEMBER_DAYS * 86400),
-            same_site="strict",
+            # "lax": iPhone-Web-Apps (Home-Bildschirm) schicken "strict"-Cookies nicht zuverlässig mit.
+            # Schutz vor fremden Formularen bleibt: CSRF-Token + Origin-Prüfung + Lax blockt fremde POSTs.
+            same_site="lax",
             https_only=config.SECURE_COOKIES,
         ),
     ],

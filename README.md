@@ -137,6 +137,16 @@ und/oder einem **Telegram**-Bot. Gemeldet werden (einzeln abschaltbar):
 
 Das ntfy-Thema ist wie ein Passwort: Wer es kennt, kann mitlesen. EarnWatch schlägt ein zufälliges vor.
 
+## Plattform-Seiten & Geräte
+
+Ein Tipp auf eine Plattform-Kachel öffnet ihre eigene Seite mit Säulendiagramm, Guthaben-Verlauf, stärksten
+Wochentagen und Auszahlungen. Bei **Honeygain, EarnApp, Pawns, Grass** und **Duino-Coin** zeigt EarnWatch
+außerdem, wie viele Geräte online sind (z. B. „3 / 4 online“) und meldet aufs Handy, wenn eins offline geht.
+Gespeichert werden dabei nur Zahlen – keine Gerätenamen oder IP-Adressen.
+
+„Jetzt abrufen“ läuft im Hintergrund: Die Seite lädt sich alle paar Sekunden selbst neu, bis alle Anbieter
+geantwortet haben, und zeigt dann das Ergebnis.
+
 ## Honeygain-Verlauf
 
 Beim ersten Abruf übernimmt EarnWatch die Tageseinnahmen der letzten 30 Tage direkt von Honeygain
@@ -161,8 +171,9 @@ zu deinen gespeicherten Zugangsdaten – also sicher aufbewahren.
 ## Als App aufs iPhone
 
 EarnWatch lässt sich wie eine App auf den Home-Bildschirm legen (eigenes Icon, Vollbild, Tab-Leiste unten):
-Seite in **Safari** öffnen → Teilen-Knopf → **„Zum Home-Bildschirm“**. Beim Login „30 Tage angemeldet bleiben“
-anhaken, dann musst du dich nicht ständig neu einloggen. Unterwegs zusammen mit Tailscale (siehe unten) nutzen.
+Seite in **Safari** öffnen → Teilen-Knopf → **„Zum Home-Bildschirm“**. Beim Login „Auf diesem Gerät angemeldet
+bleiben“ anhaken – dann bleibst du angemeldet, solange du EarnWatch mindestens alle 30 Tage öffnest (spätestens
+nach 90 Tagen fragt EarnWatch einmal neu nach dem Passwort). Ohne Haken: Abmeldung nach 12 Stunden ohne Nutzung. Unterwegs zusammen mit Tailscale (siehe unten) nutzen.
 Tipp: Am besten über die Tailscale-Adresse hinzufügen – die hat ein echtes Zertifikat.
 
 ## Von unterwegs: nur EarnWatch über Tailscale

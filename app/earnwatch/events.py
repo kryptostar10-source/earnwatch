@@ -37,6 +37,23 @@ def after_result(res, meta: dict, prev_run) -> None:
             elif res.balance < mp * 0.5 and flag == "1":
                 db.set_setting(f"payout_flag_{pf}", "0")   # nach der Auszahlung wieder scharf schalten
 
+        # --- Geräte offline (Honeygain, EarnApp, Pawns, Grass …) -------------
+        info = res.info or {}
+        if pf != "duinocoin" and isinstance(info.get("online"), int):
+            on, total = info["online"], int(info.get("geraete") or 0)
+            try:
+                before = int(db.get_setting(f"dev_online_{pf}", "-1"))
+            except ValueError:
+                before = -1
+            if before >= 0 and on < before:
+                notify.send("miner", f"📴 {name}: {before - on} Gerät{'e' if before - on != 1 else ''} offline",
+                            f"Jetzt online: {on} von {total}", priority=4, tags=["electric_plug"],
+                            dedupe=f"dev:{pf}:{on}", dedupe_seconds=3 * 3600)
+            elif before >= 0 and on > before and before < total:
+                notify.send("miner", f"✅ {name}: Gerät wieder online", f"Jetzt online: {on} von {total}",
+                            priority=2, tags=["electric_plug"])
+            db.set_setting(f"dev_online_{pf}", str(on))
+
         # --- Duino-Miner offline ----------------------------------------------
         if pf == "duinocoin":
             rigs = [r.get("name", "?") for r in (res.info or {}).get("rigs", [])]

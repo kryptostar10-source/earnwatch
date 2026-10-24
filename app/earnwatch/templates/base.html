@@ -17,6 +17,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#07090c">
 <meta name="format-detection" content="telephone=no">
+{% if collecting %}<meta http-equiv="refresh" content="4">{% endif %}
 </head>
 <body>
 {% if user %}
@@ -49,6 +50,7 @@
     </div>
   </nav>
   <main class="content">
+    {% if collecting %}<div class="flash busy" role="status"><span class="spin" aria-hidden="true"></span>Abruf läuft … die Seite aktualisiert sich gleich von selbst.</div>{% endif %}
     {% if flash %}<div class="flash {{ flash.kind }}" role="status">{{ flash.msg }}</div>{% endif %}
     {% block content %}{% endblock %}
   </main>
