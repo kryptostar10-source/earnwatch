@@ -30,10 +30,10 @@ bash install.sh
 Das Skript erkennt Netzwerkkarte, Netz und Router, fragt nach einer freien IP für EarnWatch,
 erzeugt das Einrichtungs-Token und startet alles. Danach vom PC/Handy `https://<deine-IP>` öffnen.
 
-**Update:**
+**Update (am besten einmal im Monat – holt auch Sicherheits-Updates der Images):**
 
 ```bash
-cd /opt/earnwatch && sudo git pull && sudo docker compose up -d --build
+sudo bash /opt/earnwatch/update.sh
 ```
 
 **Earn-Apps als Container nachträglich einschalten:** einfach `sudo bash install.sh` nochmal ausführen

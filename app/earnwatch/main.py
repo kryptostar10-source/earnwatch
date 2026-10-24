@@ -88,6 +88,8 @@ class SecurityHeaders:
                 await send({"type": "http.response.body", "body": "Anfrage zu groß".encode()})
                 return
         received = 0
+        is_https = scope.get("scheme") == "https" or any(
+            k == b"x-forwarded-proto" and v == b"https" for k, v in scope.get("headers", []))
 
         async def _receive():
             nonlocal received
@@ -101,6 +103,8 @@ class SecurityHeaders:
         async def _send(msg):
             if msg["type"] == "http.response.start":
                 h = msg.setdefault("headers", [])
+                if is_https:  # nur über HTTPS: Browser soll nie wieder unverschlüsselt fragen
+                    h.append((b"strict-transport-security", b"max-age=31536000"))
                 for k, v in (
                     ("content-security-policy", CSP),
                     ("x-content-type-options", "nosniff"),

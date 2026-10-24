@@ -142,6 +142,8 @@ case ",${COMPOSE_PROFILES:-}," in *,tailscale,*)
   done
   if [ -n "$TSNAME" ]; then
     echo "  Von unterwegs (Tailscale-App an):  https://$TSNAME"
+    # Angemeldet -> Auth-Key wird nicht mehr gebraucht, also aus der .env entfernen
+    setenv TS_AUTHKEY ""
   else
     echo "  Tailscale-Adresse noch nicht bereit – später prüfen mit:"
     echo "    sudo docker compose -f $DIR/docker-compose.yml logs tailscale"
