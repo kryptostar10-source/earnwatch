@@ -1,6 +1,7 @@
 # EarnWatch – sicheres Einnahmen-Dashboard (Honeygain + EarnApp)
 # Start:            docker compose up -d --build
-# Mit Earn-Apps:    docker compose --profile earners up -d --build
+# Earn-Apps: in der .env per COMPOSE_PROFILES einschalten, z. B.
+#   COMPOSE_PROFILES=honeygain,earnapp,pawns,earnfm
 
 name: earnwatch
 
@@ -55,9 +56,9 @@ services:
     mem_limit: 128m
     pids_limit: 100
 
-  # --- Optional: die Earn-Apps selbst (nur mit --profile earners) -----------
+  # --- Optional: die Earn-Apps selbst (über COMPOSE_PROFILES in der .env) ----
   honeygain:
-    profiles: [earners]
+    profiles: [earners, honeygain]
     image: honeygain/honeygain:latest
     container_name: honeygain
     restart: unless-stopped
@@ -69,7 +70,7 @@ services:
     pids_limit: 100
 
   earnapp:
-    profiles: [earners]
+    profiles: [earners, earnapp]
     image: fazalfarhan01/earnapp:lite
     container_name: earnapp
     restart: unless-stopped
@@ -83,6 +84,31 @@ services:
       - no-new-privileges:true
     mem_limit: 256m
     pids_limit: 200
+
+  pawns:
+    profiles: [pawns]
+    image: iproyal/pawns-cli:latest
+    container_name: pawns
+    restart: unless-stopped
+    command: -email=${PAWNS_EMAIL} -password=${PAWNS_PASSWORD} -device-name=${PAWNS_DEVICE:-proxmox} -device-id=${PAWNS_DEVICE:-proxmox} -accept-tos
+    networks: [earners]
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 128m
+    pids_limit: 100
+
+  earnfm:
+    profiles: [earnfm]
+    image: earnfm/earnfm-client:latest
+    container_name: earnfm
+    restart: unless-stopped
+    environment:
+      EARNFM_TOKEN: ${EARNFM_TOKEN}
+    networks: [earners]
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 128m
+    pids_limit: 100
 
 networks:
   # Eigene IP im Heimnetz (macvlan)

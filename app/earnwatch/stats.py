@@ -117,7 +117,9 @@ def compute(view: str = "day") -> dict:
         p = {
             "id": pf, "name": meta["name"], "color": meta["color"], "unit": meta["unit"],
             "dashboard": meta["dashboard"],
-            "configured": pf in configured or (meta.get("linked") in configured and bool(pts)),
+            "configured": pf in configured or (meta.get("linked") in configured and bool(pts))
+                          or (bool(meta.get("manual")) and bool(pts)),
+            "manual": bool(meta.get("manual")),
             "balance": bal, "last_ts": pts[-1][0] if pts else None,
             "fac": fac, "run": runs.get(pf), "lifetime": bool(meta.get("lifetime")), "min_payout": meta["min_payout"],
             "all": sum(daily.get(pf, {}).values()),

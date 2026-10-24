@@ -311,7 +311,20 @@ async def settings_save(request: Request):
     if form is None:
         return forbidden()
     what = request.path_params["what"]
-    if what in PLATFORMS:
+    if what in PLATFORMS and PLATFORMS[what].get("manual"):
+        meta = PLATFORMS[what]
+        try:
+            val = float((form.get("balance") or "").replace("$", "").replace(",", ".").strip())
+            if not 0 <= val < 1_000_000:
+                raise ValueError
+            db.add_snapshot(what, round(val, 4), meta["unit"])
+            db.add_run(what, True, None)
+            flash(request, f"{meta['name']}: Kontostand {charts.money(val)} eingetragen.")
+        except ValueError:
+            flash(request, "Bitte einen Betrag wie 3,47 eingeben.", "err")
+        if form.get("back") == "/":
+            return redirect("/")
+    elif what in PLATFORMS:
         meta = PLATFORMS[what]
         data, missing = {}, []
         for f in meta["fields"]:

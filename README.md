@@ -7,6 +7,9 @@ Ein schlankes Dashboard für deinen Proxmox-Docker-Host mit **eigener IP im Heim
 - **EarnApp** (USD)
 - **Grass** (Punkte – haben keinen festen Dollarwert und werden separat gezeigt)
 - **Bytelixir** (USD)
+- **Pawns.app** (IPRoyal, USD)
+- **Earn.fm** (USD)
+- **Wipter** (USD, Kontostand wird manuell eingetragen – Wipter hat keine Schnittstelle)
 - **Duino-Coin** (DUCO, mit aktuellem Kurs in USD umgerechnet; zeigt auch deine aktiven Miner, z. B. ESP32)
 
 und zeigt daraus Einnahmen **heute, diese Woche, diesen Monat, dieses Jahr** und gesamt,
@@ -30,8 +33,11 @@ erzeugt das Einrichtungs-Token und startet alles. Danach vom PC/Handy `https://<
 **Update:**
 
 ```bash
-cd /opt/earnwatch && git pull && docker compose up -d --build
+cd /opt/earnwatch && sudo git pull && sudo docker compose up -d --build
 ```
+
+**Earn-Apps als Container nachträglich einschalten:** einfach `sudo bash install.sh` nochmal ausführen
+(deine Einstellungen bleiben erhalten) oder in der `.env` z. B. `COMPOSE_PROFILES=honeygain,earnapp,pawns,earnfm` setzen.
 
 ## Was ist anders/sicherer als CashPilot?
 
@@ -81,6 +87,8 @@ docker compose --profile earners up -d --build
    - **EarnApp:** auf earnapp.com einloggen → `F12` → *Anwendung/Speicher* → *Cookies* → Wert von `oauth-refresh-token` kopieren
    - **Grass:** app.grass.io einloggen → `F12` → *Anwendung* → *Lokaler Speicher* → `https://app.grass.io` → Wert von `accessToken` (bzw. `token`) kopieren
    - **Bytelixir:** dash.bytelixir.com einloggen **mit „Remember Me“** → `F12` → *Anwendung* → *Cookies* → `bytelixir_session`, `remember_web_…` und `XSRF-TOKEN` kopieren. Wichtig ist `remember_web_…`, das hält etwa ein Jahr.
+   - **Pawns.app / Earn.fm:** E-Mail und Passwort wie auf der Webseite
+   - **Wipter:** keinen Zugang nötig – den Kontostand trägst du direkt auf der Übersicht ein
    - **Duino-Coin:** nur dein Benutzername (Duino-Kontostände sind öffentlich, kein Passwort nötig)
 7. Auf **Jetzt abrufen** klicken. Danach läuft der Abruf automatisch (Standard: stündlich).
 

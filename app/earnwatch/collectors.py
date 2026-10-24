@@ -310,6 +310,90 @@ def collect_duinocoin(creds: dict) -> Result:
         return Result("duinocoin", None, str(e))
 
 
+# --- Pawns.app (IPRoyal) --------------------------------------------------
+PAWNS_API = "https://api.pawns.app/api/v1"
+_pawns_token_cache: dict[str, str] = {}
+
+
+def collect_pawns(creds: dict) -> Result:
+    import secrets, string
+    email, password = creds.get("email", ""), creds.get("password", "")
+    if not email or not password:
+        return Result("pawns", None, "Keine Zugangsdaten hinterlegt")
+    op = _opener()
+    try:
+        def login() -> str:
+            ident = "".join(secrets.choice(string.ascii_letters + string.digits) for _ in range(21))
+            st, raw, _ = _request(op, f"{PAWNS_API}/users/tokens", method="POST",
+                                  body={"identifier": ident, "email": email, "password": password,
+                                        "h_captcha_response": ""})
+            if st in (400, 401, 403, 422):
+                raise CollectError("Login abgelehnt – E-Mail/Passwort prüfen (oder Captcha verlangt)")
+            if st == 429:
+                raise CollectError("Pawns bremst gerade (Rate-Limit) – nächster Versuch später")
+            if st not in (200, 201):
+                raise CollectError(f"Login fehlgeschlagen (HTTP {st})")
+            tok = _json(raw).get("access_token")
+            if not tok:
+                raise CollectError("Kein Token in der Login-Antwort")
+            return tok
+
+        token = _pawns_token_cache.get(email) or login()
+        st, raw, _ = _request(op, f"{PAWNS_API}/users/me/balance-dashboard",
+                              headers={"Authorization": f"Bearer {token}"})
+        if st == 401:
+            token = login()
+            st, raw, _ = _request(op, f"{PAWNS_API}/users/me/balance-dashboard",
+                                  headers={"Authorization": f"Bearer {token}"})
+        if st != 200:
+            raise CollectError(f"Kontostand-Abruf fehlgeschlagen (HTTP {st})")
+        _pawns_token_cache[email] = token
+        bal = _json(raw).get("balance")
+        if bal is None:
+            raise CollectError("Feld balance fehlt – API geändert?")
+        return Result("pawns", round(float(bal), 4))
+    except CollectError as e:
+        _pawns_token_cache.pop(email, None)
+        return Result("pawns", None, str(e))
+
+
+# --- Earn.fm --------------------------------------------------------------
+EFM_AUTH = "https://sb.earn.fm/auth/v1/token?grant_type=password"
+EFM_API = "https://api.earn.fm/v2"
+# Öffentlicher "anon"-Schlüssel aus der Earn.fm-Webseite (kein Geheimnis)
+EFM_ANON = ("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9."
+            "ewogICJyb2xlIjogImFub24iLAogICJpc3MiOiAic3VwYWJhc2UiLAogICJpYXQiOiAxNjkyNjU1MjAwLAogICJleHAiOiAxODUwNTA4MDAwCn0."
+            "jp-Uj5ro0jj7MHnlE8HHZRsZAFOI1d_T9n_9tnE09vM")
+
+
+def collect_earnfm(creds: dict) -> Result:
+    email, password = creds.get("email", "").strip(), creds.get("password", "")
+    if not email or not password:
+        return Result("earnfm", None, "Keine Zugangsdaten hinterlegt")
+    op = _opener()
+    try:
+        st, raw, _ = _request(op, EFM_AUTH, method="POST", body={"email": email, "password": password},
+                              headers={"apikey": EFM_ANON})
+        if st in (400, 401, 403):
+            raise CollectError("Login abgelehnt – E-Mail/Passwort prüfen")
+        if st != 200:
+            raise CollectError(f"Login fehlgeschlagen (HTTP {st})")
+        token = _json(raw).get("access_token")
+        if not token:
+            raise CollectError("Kein Token in der Login-Antwort")
+        st, raw, _ = _request(op, f"{EFM_API}/harvester/view_balance", headers={"X-API-Key": token})
+        if st in (401, 403):
+            raise CollectError("Token abgelehnt – Zugangsdaten prüfen")
+        if st != 200:
+            raise CollectError(f"Kontostand-Abruf fehlgeschlagen (HTTP {st})")
+        bal = (_json(raw).get("data") or {}).get("totalBalance")
+        if bal is None:
+            raise CollectError("Feld totalBalance fehlt – API geändert?")
+        return Result("earnfm", round(float(bal), 4))
+    except CollectError as e:
+        return Result("earnfm", None, str(e))
+
+
 # --- Registry -------------------------------------------------------------
 # unit: Einheit des Guthabens. usd: True = Einheit ist USD; "price" = Kurs wird
 # mit abgerufen; None = kein Geldwert (Punkte).
@@ -365,5 +449,31 @@ PLATFORMS = {
             {"key": "username", "label": "Duino-Coin-Benutzername", "type": "text", "required": True},
         ],
         "hint": "Nur der Benutzername – Duino-Coin-Kontostände sind öffentlich, es wird kein Passwort gebraucht. Zeigt auch deine aktiven Miner (z. B. ESP32) und die Hashrate.",
+    },
+    "pawns": {
+        "name": "Pawns.app", "color": "#ec4899", "unit": "USD", "usd": True, "on_drop": "payout",
+        "collect": collect_pawns, "dashboard": "https://dashboard.pawns.app/", "min_payout": 5.0,
+        "fields": [
+            {"key": "email", "label": "E-Mail", "type": "email", "required": True},
+            {"key": "password", "label": "Passwort", "type": "password", "required": True},
+        ],
+        "hint": "Gleiche Daten wie auf pawns.app. Bei Google-Login vorher ein Passwort setzen.",
+    },
+    "earnfm": {
+        "name": "Earn.fm", "color": "#06b6d4", "unit": "USD", "usd": True, "on_drop": "payout",
+        "collect": collect_earnfm, "dashboard": "https://app.earn.fm/", "min_payout": None,
+        "fields": [
+            {"key": "email", "label": "E-Mail", "type": "email", "required": True},
+            {"key": "password", "label": "Passwort", "type": "password", "required": True},
+        ],
+        "hint": "Gleiche Daten wie auf app.earn.fm (Login mit E-Mail und Passwort).",
+    },
+    "wipter": {
+        "name": "Wipter", "color": "#eab308", "unit": "USD", "usd": True, "on_drop": "payout",
+        "collect": None, "manual": True, "dashboard": "https://wipter.com/", "min_payout": None,
+        "fields": [
+            {"key": "balance", "label": "Aktueller Kontostand in $", "type": "text", "required": True},
+        ],
+        "hint": "Wipter hat keine Schnittstelle zum Abrufen. Trag den Kontostand von wipter.com hier ab und zu ein – EarnWatch rechnet daraus deine Einnahmen.",
     },
 }

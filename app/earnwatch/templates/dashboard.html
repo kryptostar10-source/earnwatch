@@ -7,7 +7,7 @@
 <div class="head">
   <div>
     <h1>Einnahmen</h1>
-    <p class="muted">5 Plattformen · automatischer Abruf, Beträge in USD{% if eur %} (≈ € zum Kurs {{ '%.2f'|format(eur) }}){% endif %}</p>
+    <p class="muted">{{ d.platforms|selectattr("configured")|list|length }} Plattformen aktiv · automatischer Abruf, Beträge in USD{% if eur %} (≈ € zum Kurs {{ '%.2f'|format(eur) }}){% endif %}</p>
   </div>
   <form method="post" action="/collect">
     <input type="hidden" name="csrf" value="{{ csrf }}">
@@ -55,13 +55,29 @@
         <div><dt>Monat</dt><dd>{{ amount(p.month, p.unit) }}</dd></div>
         <div><dt>Jahr</dt><dd>{{ amount(p.year, p.unit) }}</dd></div>
       </dl>
+      {% if p.manual %}
+      <form method="post" action="/settings/{{ p.id }}" class="manual">
+        <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="back" value="/">
+        <input name="balance" inputmode="decimal" placeholder="Neuer Stand in $" required aria-label="Neuer Kontostand">
+        <button>Eintragen</button>
+      </form>
+      {% endif %}
       <footer class="muted small">
         Letzter Messwert: {{ p.last_ts|dtfmt }}
         {% if p.run and not p.run.ok %}<br><span class="errtext">{{ p.run.message }}</span>{% endif %}
         · <a href="{{ p.dashboard }}" rel="noopener noreferrer" target="_blank">Zum Anbieter ↗</a>
       </footer>
     {% else %}
+      {% if p.manual %}
+      <form method="post" action="/settings/{{ p.id }}" class="manual">
+        <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="back" value="/">
+        <input name="balance" inputmode="decimal" placeholder="Aktueller Stand in $" required aria-label="Kontostand">
+        <button>Eintragen</button>
+      </form>
+      <p class="muted small">Manuell: Stand von wipter.com abtippen.</p>
+      {% else %}
       <p class="muted">Zugangsdaten in den <a href="/settings#{{ p.id }}">Einstellungen</a> hinterlegen.</p>
+      {% endif %}
     {% endif %}
   </article>
 {% endfor %}

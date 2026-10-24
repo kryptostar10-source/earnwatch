@@ -10,11 +10,12 @@
   <header class="row"><span class="dot" data-pf="{{ pf }}"></span><h2>{{ meta.name }}</h2>
     {% if pf in configured %}<span class="badge ok">gespeichert</span>{% endif %}</header>
   <form method="post" action="/settings/{{ pf }}" autocomplete="off">
+    {% if meta.manual %}<!-- manueller Eintrag -->{% endif %}
     <input type="hidden" name="csrf" value="{{ csrf }}">
     {% for f in meta.fields %}
-    <label>{{ f.label }}<input name="{{ f.key }}" type="{{ f.type }}" {% if f.required %}required{% endif %} maxlength="6000" {% if f.type == 'password' %}autocomplete="new-password"{% endif %} spellcheck="false"></label>
+    <label>{{ f.label }}<input name="{{ f.key }}" type="{{ f.type }}" {% if meta.manual %}inputmode="decimal"{% endif %} {% if f.required %}required{% endif %} maxlength="6000" {% if f.type == 'password' %}autocomplete="new-password"{% endif %} spellcheck="false"></label>
     {% endfor %}
-    <button class="primary">Speichern</button>
+    <button class="primary">{{ 'Eintragen' if meta.manual else 'Speichern' }}</button>
   </form>
   {% if pf in configured %}
   <form method="post" action="/settings/delete" class="inline">

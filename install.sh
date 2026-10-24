@@ -40,25 +40,49 @@ else
   chmod 600 .env
 fi
 
-PROFILE=""
-read -rp "Honeygain- und EarnApp-Container auch starten? [j/N] " earn
+setenv(){ # setenv NAME WERT  -> sicher in .env schreiben (ohne sed, Sonderzeichen erlaubt)
+  grep -v -E "^$1=" .env > .env.tmp || true
+  if [[ "$2" != *"'"* ]]; then printf "%s='%s'\n" "$1" "$2" >> .env.tmp
+  else v=${2//\\/\\\\}; v=${v//\"/\\\"}; v=${v//\$/\$\$}; printf '%s="%s"\n' "$1" "$v" >> .env.tmp; fi
+  mv .env.tmp .env; chmod 600 .env
+}
+PROFILES=$(grep -E '^COMPOSE_PROFILES=' .env | cut -d= -f2- | tr -d "'\"" || true)
+add_profile(){ case ",$PROFILES," in *",$1,"*) ;; *) PROFILES="${PROFILES:+$PROFILES,}$1";; esac; }
+
+read -rp "Earn-Apps als Container auf diesem Server mitlaufen lassen? [j/N] " earn
 if [[ "${earn,,}" == j* ]]; then
-  grep -q '^HG_EMAIL=.\+' .env || { read -rp "Honeygain E-Mail: " HG; read -rsp "Honeygain Passwort: " HP; echo
-    grep -v -E '^HG_(EMAIL|PASSWORD)=' .env > .env.tmp
-    printf "HG_EMAIL=%s\nHG_PASSWORD='%s'\n" "$HG" "$HP" >> .env.tmp
-    mv .env.tmp .env; chmod 600 .env; }
-  grep -q '^EARNAPP_UUID=.\+' .env || { UUID="sdk-node-$(head -c 16 /dev/urandom | od -An -tx1 | tr -d ' \n')"
-    sed -i "s|^EARNAPP_UUID=.*|EARNAPP_UUID=$UUID|" .env; }
-  PROFILE="--profile earners"
+  read -rp "  Honeygain starten? [j/N] " a
+  if [[ "${a,,}" == j* ]]; then
+    grep -q "^HG_EMAIL=.\+" .env || { read -rp "    Honeygain E-Mail: " v; setenv HG_EMAIL "$v"; read -rsp "    Honeygain Passwort: " v; echo; setenv HG_PASSWORD "$v"; }
+    add_profile honeygain
+  fi
+  read -rp "  EarnApp starten? [j/N] " a
+  if [[ "${a,,}" == j* ]]; then
+    grep -q "^EARNAPP_UUID=.\+" .env || setenv EARNAPP_UUID "sdk-node-$(head -c 16 /dev/urandom | od -An -tx1 | tr -d ' \n')"
+    add_profile earnapp
+  fi
+  read -rp "  Pawns.app starten? [j/N] " a
+  if [[ "${a,,}" == j* ]]; then
+    grep -q "^PAWNS_EMAIL=.\+" .env || { read -rp "    Pawns E-Mail: " v; setenv PAWNS_EMAIL "$v"; read -rsp "    Pawns Passwort: " v; echo; setenv PAWNS_PASSWORD "$v"; }
+    add_profile pawns
+  fi
+  read -rp "  Earn.fm starten? [j/N] " a
+  if [[ "${a,,}" == j* ]]; then
+    grep -q "^EARNFM_TOKEN=.\+" .env || { echo "    API-Key: app.earn.fm -> Profil -> Account Settings"; read -rsp "    Earn.fm API-Key: " v; echo; setenv EARNFM_TOKEN "$v"; }
+    add_profile earnfm
+  fi
+  setenv COMPOSE_PROFILES "$PROFILES"
 fi
 
 say "Baue und starte EarnWatch (dauert 1–2 Minuten)"
-docker compose $PROFILE up -d --build
+docker compose up -d --build
 
-set -a; . ./.env; set +a
+getenv(){ grep -E "^$1=" .env | tail -1 | cut -d= -f2- | sed -e "s/^'//" -e "s/'$//" -e 's/^"//' -e 's/"$//'; }
+EW_IP=$(getenv EW_IP); EW_SETUP_TOKEN=$(getenv EW_SETUP_TOKEN); EARNAPP_UUID=$(getenv EARNAPP_UUID); COMPOSE_PROFILES=$(getenv COMPOSE_PROFILES)
 say "Fertig!"
 echo "  Öffne von PC/Handy:   https://$EW_IP   (Zertifikatswarnung einmal bestätigen)"
 echo "  Einrichtungs-Token:   $EW_SETUP_TOKEN"
 echo "  (steht auch in $DIR/.env)"
-[ -n "$PROFILE" ] && echo "  EarnApp-Gerät verknüpfen: https://earnapp.com/r/$EARNAPP_UUID"
+case ",${COMPOSE_PROFILES:-}," in *,earnapp,*) echo "  EarnApp-Gerät verknüpfen: https://earnapp.com/r/$EARNAPP_UUID";; esac
+echo "  Wipter: Kontostand trägst du direkt auf der Übersicht ein."
 echo "  Hinweis: Vom Server selbst ist die IP nicht erreichbar – das ist normal."
