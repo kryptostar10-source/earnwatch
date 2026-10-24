@@ -28,8 +28,12 @@ EVENTS = {
     "login": "Neue Anmeldung bei EarnWatch",
     "security": "Sicherheits-Änderungen (Passwort, 2FA)",
     "summary": "Tageszusammenfassung",
+    "achievement": "Erfolg freigeschaltet",
+    "container": "Container gestoppt / abgestürzt",
+    "expiry": "Login läuft bald ab",
 }
-DEFAULT_EVENTS = ["payout", "error", "miner", "login", "security", "summary"]
+DEFAULT_EVENTS = ["payout", "error", "miner", "login", "security", "summary", "achievement", "container", "expiry"]
+NEW_EVENTS = ["achievement", "container", "expiry"]   # bei bestehenden Einstellungen einmalig mit einschalten
 TOPIC_RE = re.compile(r"^[A-Za-z0-9_-]{12,64}$")
 _lock = threading.Lock()
 _recent: dict[str, float] = {}
@@ -46,6 +50,11 @@ def config() -> dict:
         cfg["events"] = json.loads(db.get_setting("notify_events", json.dumps(DEFAULT_EVENTS)))
     except ValueError:
         cfg["events"] = DEFAULT_EVENTS
+    if db.get_setting("notify_events_v2", "") != "1":
+        # Neue Meldungsarten bei einem Update einmal automatisch einschalten (danach frei abwählbar)
+        cfg["events"] = list(dict.fromkeys(cfg["events"] + NEW_EVENTS))
+        db.set_setting("notify_events", json.dumps(cfg["events"]))
+        db.set_setting("notify_events_v2", "1")
     cfg["summary_hour"] = int(db.get_setting("notify_summary_hour", "21"))
     return cfg
 

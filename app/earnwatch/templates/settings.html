@@ -1,6 +1,8 @@
 {% extends "base.html" %}
 {% block title %}Einstellungen · EarnWatch{% endblock %}
 {% block content %}
+<meta name="csrf-token" content="{{ csrf }}">
+<script src="/static/passkey.js" defer></script>
 <header class="pagehead">
   <div>
     <div class="date">Zugangsdaten werden verschlüsselt gespeichert und nie wieder angezeigt</div>
@@ -16,7 +18,10 @@
     <header>
       <span class="badge" data-pf="{{ pf }}">{{ meta.short }}</span>
       <h2>{{ meta.name }}</h2>
-      {% if pf in configured %}<span class="pill ok">gespeichert</span>
+      {% set ex = exp.get(pf, 0) %}
+      {% if pf in configured and ex and ex < now %}<span class="pill err">abgelaufen</span>
+      {% elif pf in configured and ex and ex - now < 5 * 86400 %}<span class="pill warn">läuft in {{ ((ex - now) / 86400)|round(0, 'ceil')|int }} T. ab</span>
+      {% elif pf in configured %}<span class="pill ok">gespeichert{% if ex %} · bis {{ ex|dtfmt }}{% endif %}</span>
       {% elif meta.fallback_creds and meta.fallback_creds in configured %}<span class="pill dim">nutzt {{ platforms[meta.fallback_creds].name }}-Zugang</span>
       {% elif meta.manual %}<span class="pill warn">manuell</span>{% endif %}
     </header>
@@ -46,7 +51,18 @@
   <form method="post" action="/settings/general">
     <input type="hidden" name="csrf" value="{{ csrf }}">
     <label>Abruf-Intervall (Minuten, 15–1440)<input name="interval" type="number" min="15" max="1440" value="{{ interval }}"></label>
-    <label>USD→EUR-Kurs (leer = nur USD)<input name="eur_rate" inputmode="decimal" value="{{ eur_rate if eur_rate not in ('', '0') else '' }}" placeholder="z. B. 0,92"></label>
+    <label>Währung
+      <select name="currency" class="block">
+        <option value="USD" {% if currency == 'USD' %}selected{% endif %}>US-Dollar ($)</option>
+        <option value="EUR" {% if currency == 'EUR' %}selected{% endif %}>Euro (€) – Kurs automatisch von der EZB</option>
+      </select></label>
+    {% if currency == 'EUR' and eur_rate > 0 %}<p class="small muted">1 $ = {{ ('%.4f'|format(eur_rate)).replace('.', ',') }} € · Stand {{ eur_rate_ts|dtfmt }}</p>{% endif %}
+    <label>Design
+      <select name="theme" class="block">
+        <option value="auto" {% if theme == 'auto' %}selected{% endif %}>Automatisch (wie iPhone/PC)</option>
+        <option value="dark" {% if theme == 'dark' %}selected{% endif %}>Immer dunkel</option>
+        <option value="light" {% if theme == 'light' %}selected{% endif %}>Immer hell</option>
+      </select></label>
     <button class="btn primary sm">Speichern</button>
   </form>
 </section>
@@ -71,6 +87,45 @@
       </div>
     </form>
   {% endif %}
+</section>
+
+<section class="card setcard" id="passkeys">
+  <header>
+    <h2>Face ID / Passkey</h2>
+    {% if passkeys %}<span class="pill ok">{{ passkeys|length }} aktiv</span>{% else %}<span class="pill dim">aus</span>{% endif %}
+  </header>
+  <p class="muted small">Anmelden per Face ID, Touch ID oder Windows Hello – ohne Passwort und ohne 2FA-Code, trotzdem sicherer.
+    Funktioniert nur über deine <b>Tailscale-Adresse</b> (…ts.net), nicht über die IP.</p>
+  {% for pk in passkeys %}
+  <form method="post" action="/settings/passkey_delete" class="pkrow">
+    <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="id" value="{{ pk.id }}">
+    <span class="pkname"><b>{{ pk.name }}</b><small>{{ pk.rp_id }} · seit {{ pk.created|dtfmt }}{% if pk.last_used %} · zuletzt {{ pk.last_used|ago }}{% endif %}</small></span>
+    <button class="btn danger sm">Entfernen</button>
+  </form>
+  {% endfor %}
+  <div id="pk-reg" hidden>
+    <label>Passwort zur Bestätigung<input id="pk-pw" type="password" autocomplete="current-password" maxlength="256"></label>
+    <label>Name (optional)<input id="pk-name" maxlength="60" placeholder="z. B. iPhone"></label>
+    <button type="button" class="btn primary sm" id="pk-reg-btn">Passkey hinzufügen</button>
+    <p class="small muted pkmsg" id="pk-reg-msg" role="status"></p>
+  </div>
+  <p class="small muted" id="pk-nojs">Dein Browser unterstützt hier keine Passkeys (oder du bist über die IP-Adresse verbunden).</p>
+</section>
+
+<section class="card setcard" id="widget">
+  <header>
+    <h2>iPhone-Widget</h2>
+    {% if widget_ts %}<span class="pill ok">aktiv</span>{% else %}<span class="pill dim">aus</span>{% endif %}
+  </header>
+  <p class="muted small">Zeigt Guthaben, heutige Einnahmen und Geräte direkt auf dem Home-Bildschirm (mit der kostenlosen App „Scriptable“). Der Schlüssel darf nur lesen.</p>
+  {% if widget_ts %}<p class="small muted">Schlüssel erstellt am {{ widget_ts|dtfmt }}</p>{% endif %}
+  <form method="post" action="/settings/widget">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <div class="actions">
+      <button class="btn primary sm" name="action" value="new">{{ 'Neuen Schlüssel erzeugen' if widget_ts else 'Widget einrichten' }}</button>
+      {% if widget_ts %}<button class="btn danger sm" name="action" value="delete">Schlüssel löschen</button>{% endif %}
+    </div>
+  </form>
 </section>
 
 <section class="card setcard">
@@ -131,6 +186,19 @@
     </div>
   </form>
 </section>
+
+{% if containers.services %}
+<section class="card">
+  <div class="cardhead"><h2>Container</h2><span class="small muted">geprüft {{ containers.ts|ago }} vom Container-Wächter</span></div>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Dienst</th><th>Zustand</th><th class="num">Neustarts</th></tr></thead>
+    <tbody>{% for c in containers.services %}
+      <tr><td>{{ c.label }}</td>
+      <td>{% if c.state == 'running' and c.health != 'unhealthy' %}<span class="pill ok">läuft{% if c.health == 'healthy' %} · gesund{% endif %}</span>{% else %}<span class="pill err">{{ c.state }}{% if c.health %} · {{ c.health }}{% endif %}</span>{% endif %}</td>
+      <td class="num">{{ c.restarts }}</td></tr>{% endfor %}
+    </tbody></table></div>
+</section>
+{% endif %}
 
 <section class="card">
   <div class="cardhead"><h2>Letzte Abrufe</h2></div>

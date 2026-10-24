@@ -18,9 +18,39 @@ def _nice_max(v: float) -> float:
     return v * 1.1
 
 
+_cur = {"ts": 0.0, "code": "USD", "rate": 1.0}
+
+
+def currency() -> tuple[str, float]:
+    """Anzeige-Währung (USD oder EUR mit automatischem EZB-Kurs), 30 s zwischengespeichert."""
+    import time
+    from . import db
+    if time.time() - _cur["ts"] > 30:
+        code = db.get_setting("currency", "USD")
+        try:
+            rate = float(db.get_setting("eur_rate", "0") or 0)
+        except ValueError:
+            rate = 0.0
+        if code == "EUR" and 0.3 < rate < 3:
+            _cur.update(code="EUR", rate=rate)
+        else:
+            _cur.update(code="USD", rate=1.0)
+        _cur["ts"] = time.time()
+    return _cur["code"], _cur["rate"]
+
+
+def reset_currency_cache() -> None:
+    _cur["ts"] = 0.0
+
+
 def money(v: float) -> str:
+    """USD-Betrag in der gewählten Anzeige-Währung formatieren."""
+    code, rate = currency()
     sign = "-" if v < 0 else ""
-    v = abs(v)
+    v = abs(v) * rate
+    if code == "EUR":
+        txt = f"{v:,.2f}" if v >= 1 else f"{v:.3f}"
+        return sign + txt.replace(",", "X").replace(".", ",").replace("X", ".") + " €"
     return f"{sign}${v:,.2f}" if v >= 1 else f"{sign}${v:.3f}"
 
 
@@ -176,7 +206,7 @@ def line_chart(series: dict[str, list], width=860, height=200) -> Markup:
 def _short(v: float, unit: str) -> str:
     """Kurze Achsenbeschriftung in der Einheit der Plattform."""
     if unit == "USD":
-        return money(v) if v < 100 else f"${v:,.0f}"
+        return money(v) if v < 100 else money(round(v))
     if abs(v) >= 1000:
         return f"{v / 1000:.1f}k".replace(".0k", "k")
     return f"{v:.2f}" if abs(v) < 10 else f"{v:.0f}"
@@ -278,5 +308,42 @@ def weekday_bars(values: list[dict], color: str, unit: str, width=320, height=15
             out.append(f'<text x="{x + bw / 2:.1f}" y="{18 + h - bh - 6:.1f}" class="wdtop" text-anchor="middle">'
                        f'{escape(_short(v["value"], unit))}</text>')
         out.append(f'<text x="{x + bw / 2:.1f}" y="{height - 4}" class="axis{" now" if best else ""}" text-anchor="middle">{v["label"]}</text>')
+    out.append("</svg>")
+    return Markup("".join(out))
+
+
+def heatmap(days: dict, unit: str = "USD") -> Markup:
+    """Kalender wie bei GitHub: jede Spalte eine Woche, je kräftiger, desto mehr verdient."""
+    if not days:
+        return Markup("")
+    dates = sorted(days)
+    end = dates[-1]
+    start = end - dt.timedelta(days=end.weekday() + 52 * 7)   # Montag vor 52 Wochen
+    vals = sorted(v for d, v in days.items() if v > 0 and d >= start)
+    q = [vals[int(len(vals) * f)] for f in (0.25, 0.5, 0.75, 0.9)] if vals else []
+    cell, gap, left, top = 12, 3, 26, 18
+    weeks = (end - start).days // 7 + 1
+    width, height = left + weeks * (cell + gap), top + 7 * (cell + gap)
+    out = [f'<svg viewBox="0 0 {width} {height}" class="heat" role="img" aria-label="Einnahmen je Tag im letzten Jahr">']
+    for row, lbl in ((0, "Mo"), (2, "Mi"), (4, "Fr")):
+        out.append(f'<text x="0" y="{top + row * (cell + gap) + 10}" class="axis">{lbl}</text>')
+    last_month = None
+    months = ["Jan", "Feb", "Mär", "Apr", "Mai", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dez"]
+    for w in range(weeks):
+        monday = start + dt.timedelta(weeks=w)
+        if monday.month != last_month and monday.day <= 7:
+            out.append(f'<text x="{left + w * (cell + gap)}" y="11" class="axis">{months[monday.month - 1]}</text>')
+            last_month = monday.month
+        for r in range(7):
+            d = monday + dt.timedelta(days=r)
+            if d > end:
+                break
+            v = days.get(d, 0.0)
+            lvl = 0 if v <= 0 else 1 + sum(1 for t in q[1:] if v >= t)
+            x, y = left + w * (cell + gap), top + r * (cell + gap)
+            fill = f' class="h{lvl}"'
+            tip = f'{d.strftime("%d.%m.%Y")}: {amount(v, unit) if v > 0 else "nichts"}'
+            out.append(f'<rect x="{x}" y="{y}" width="{cell}" height="{cell}" rx="3"{fill}>'
+                       f'<title>{escape(tip)}</title></rect>')
     out.append("</svg>")
     return Markup("".join(out))

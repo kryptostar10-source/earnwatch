@@ -1,0 +1,14 @@
+{% macro heatcard(svg, st, pf=none) %}
+<section class="card">
+  <div class="cardhead">
+    <div><h2>Dein Jahr</h2><span class="small muted">jedes Kästchen ein Tag · je kräftiger, desto mehr verdient</span></div>
+  </div>
+  <div class="heatwrap chartwrap end" {% if pf %}data-pf="{{ pf }}"{% endif %}>{{ svg }}</div>
+  <div class="heatfoot heatwrap" {% if pf %}data-pf="{{ pf }}"{% endif %}>
+    <span>🔥 Serie: <b>{{ st.current }} Tag{{ 'e' if st.current != 1 }}</b></span>
+    <span>Rekord: <b>{{ st.longest }} Tage</b></span>
+    <span>Aktive Tage: <b>{{ st.active }}</b></span>
+    <span class="heatlegend" aria-hidden="true">weniger <i class="l0"></i><i class="l1"></i><i class="l2"></i><i class="l3"></i><i></i> mehr</span>
+  </div>
+</section>
+{% endmacro %}

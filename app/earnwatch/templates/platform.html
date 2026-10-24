@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% from "_devices.html" import devchip %}
+{% from "_heat.html" import heatcard %}
 {% block title %}{{ p.name }} · EarnWatch{% endblock %}
 {% block content %}
 {% set plabels = {'today':'Heute','week':'Woche','month':'Monat','year':'Jahr'} %}
@@ -99,7 +100,7 @@
   <div class="cardhead">
     <div>
       <h2>{{ {'day':'Tageseinnahmen','week':'Wocheneinnahmen','month':'Monatseinnahmen','year':'Jahreseinnahmen'}[view] }}</h2>
-      <span class="small muted">{{ p.name }} · in {{ p.unit }} · gestrichelt = Durchschnitt</span>
+      <span class="small muted">{{ p.name }} · in {{ cur_label() if p.unit == "USD" else p.unit }} · gestrichelt = Durchschnitt</span>
     </div>
     <nav class="seg small" aria-label="Diagramm-Ansicht">
       {% for v, l in [('day','Tage'),('week','Wochen'),('month','Monate'),('year','Jahre')] %}
@@ -136,6 +137,8 @@
     </div>
   </div>
 </section>
+
+{% if x.since %}{{ heatcard(heat_svg, x.streaks, p.id) }}{% endif %}
 
 {% if miners_svg %}
 <section class="card sm">

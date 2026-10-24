@@ -1,12 +1,12 @@
 {% extends "base.html" %}
 {% from "_devices.html" import devchip %}
+{% from "_heat.html" import heatcard %}
 {% block title %}Übersicht · EarnWatch{% endblock %}
+{% block head %}{% if d.has_data %}<link rel="stylesheet" href="/live.css">{% endif %}{% endblock %}
 {% block content %}
-{% set eur = eur_rate if eur_rate > 0 else none %}
 {% set plabels = {'today':'Heute','week':'Woche','month':'Monat','year':'Jahr'} %}
 {% set plong = {'today':'heute','week':'diese Woche','month':'diesen Monat','year':'dieses Jahr'} %}
 {% set pprev = {'today':'gestern','week':'Vorwoche','month':'Vormonat','year':'Vorjahr'} %}
-{% macro eurtxt(v) %}{% if eur %}≈ {{ '{:,.2f}'.format(v*eur).replace(',', 'X').replace('.', ',').replace('X', '.') }} €{% endif %}{% endmacro %}
 {% macro q(p, v) %}?period={{ p }}&amp;view={{ v }}{% endmacro %}
 {% set active = d.platforms|selectattr('configured')|list %}
 
@@ -41,8 +41,8 @@
   <div class="herocard">
     <div class="top"><span>Guthaben gesamt</span><span class="tag">{{ active|length }} Plattform{{ '' if active|length == 1 else 'en' }}{% if d.devices.known %} · {{ d.devices.online }}{% if d.devices.online != d.devices.total %} / {{ d.devices.total }}{% endif %} Geräte online{% endif %}</span></div>
     <div>
-      <div class="big">{{ money(d.totals.balance) }}</div>
-      {% if eur %}<div class="eur">{{ eurtxt(d.totals.balance) }}</div>{% endif %}
+      <div class="big live"><span class="st">{{ money(d.totals.balance) }}</span><span class="lv" aria-hidden="true"></span></div>
+      <div class="livetag"><span class="livedot dark"></span>live hochgerechnet · Ø {{ money(d.totals.d7_usd / 7 if d.totals.d7_usd is defined else 0) }} pro Tag</div>
     </div>
     {{ hero_svg }}
   </div>
@@ -57,7 +57,6 @@
     </div>
     <div>
       <div class="big">{{ money(d.totals[period]) }}</div>
-      {% if eur %}<div class="muted mono small">{{ eurtxt(d.totals[period]) }}</div>{% endif %}
     </div>
     <div class="minis">
       <div class="mini"><span>Ø pro Tag</span><b>{{ money(d.avg_day) }}</b></div>
@@ -76,7 +75,6 @@
   <a class="kpi" href="{{ q(k, view) }}" {% if period == k %}aria-current="page"{% endif %}>
     <span>{{ plabels[k] }}</span>
     <b>{{ money(d.totals[k]) }}</b>
-    {% if eur %}<small>{{ eurtxt(d.totals[k]) }}</small>{% endif %}
   </a>
   {% endfor %}
 </section>
@@ -86,7 +84,7 @@
     <div class="cardhead">
       <div>
         <h2>{{ {'day':'Tageseinnahmen','week':'Wocheneinnahmen','month':'Monatseinnahmen','year':'Jahreseinnahmen'}[view] }}</h2>
-        <span class="small muted">gestapelt nach Plattform, in USD</span>
+        <span class="small muted">gestapelt nach Plattform, in {{ cur_label() }}</span>
       </div>
       <nav class="seg small" aria-label="Diagramm-Ansicht">
         {% for v, l in [('day','Tage'),('week','Wochen'),('month','Monate'),('year','Jahre')] %}
@@ -110,6 +108,17 @@
     </div>
     {% endif %}
 
+    <a class="card sm achcard" href="/erfolge">
+      <div class="cardhead"><h2>Erfolge</h2><span class="pill ok">{{ ach.count }} / {{ ach.total }}</span></div>
+      <div class="achrow">
+        {% for a in ach.done[:4] %}<span class="achmini got" title="{{ a.title }}">{{ a.icon }}</span>{% endfor %}
+        {% for a in ach.next[:(6 - ach.done[:4]|length)] %}<span class="achmini" title="{{ a.title }} – {{ a.val }} von {{ a.goal }}">{{ a.icon }}</span>{% endfor %}
+      </div>
+      {% if ach.next %}{% set n = ach.next[0] %}
+      <div class="achnext"><span>Als Nächstes: <b>{{ n.icon }} {{ n.title }}</b></span><progress max="1" value="{{ n.progress }}" aria-label="Fortschritt"></progress><small>{{ n.val }} von {{ n.goal }}</small></div>
+      {% endif %}
+    </a>
+
     <div class="card sm">
       <div class="cardhead"><h2>Letzte Aktivität</h2></div>
       {% if d.feed %}
@@ -129,6 +138,8 @@
   </div>
 </section>
 
+{% if d.has_data %}{{ heatcard(heat_svg, d.streaks) }}{% endif %}
+
 <section id="plattformen">
   <div class="cardhead sectionhead">
     <h2>Plattformen</h2>
@@ -147,6 +158,8 @@
         </a>
         {% if not p.configured %}<span class="pill dim">aus</span>
         {% elif p.run and not p.run.ok %}<span class="pill err" title="{{ p.run.message }}">Fehler</span>
+        {% elif p.exp_days is not none and p.exp_days <= 0 %}<span class="pill err">Login abgelaufen</span>
+        {% elif p.exp_days is not none and p.exp_days <= 5 %}<span class="pill warn">Login: noch {{ p.exp_days|round(0, 'ceil')|int }} T.</span>
         {% elif p.manual %}<span class="pill warn">manuell</span>
         {% else %}<span class="pill ok">aktiv</span>{% endif %}
       </header>
@@ -209,7 +222,7 @@
     {% endfor %}
     </tbody>
     {% if active %}
-    <tfoot><tr><th>Summe (USD)</th>{% for k in ['today','week','month','year','all'] %}<th class="num">{{ money(d.totals[k]) }}</th>{% endfor %}</tr></tfoot>
+    <tfoot><tr><th>Summe ({{ cur_label() }})</th>{% for k in ['today','week','month','year','all'] %}<th class="num">{{ money(d.totals[k]) }}</th>{% endfor %}</tr></tfoot>
     {% endif %}
   </table>
   </div>

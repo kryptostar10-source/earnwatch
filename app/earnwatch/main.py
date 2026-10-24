@@ -3,7 +3,9 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import hashlib
 import hmac
+import secrets
 import csv
 import datetime as dt
 import io
@@ -20,13 +22,13 @@ from starlette.concurrency import run_in_threadpool
 from starlette.middleware import Middleware
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.requests import Request
-from starlette.responses import PlainTextResponse, RedirectResponse, Response
+from starlette.responses import JSONResponse, PlainTextResponse, RedirectResponse, Response
 from starlette.routing import Mount, Route
 from starlette.staticfiles import StaticFiles
 from starlette.templating import Jinja2Templates
 from markupsafe import Markup
 
-from . import auth, charts, config, db, events, notify, stats, totp
+from . import achievements, auth, webauthn, charts, config, db, events, fx, notify, stats, totp
 from .collectors import PLATFORMS
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -39,6 +41,7 @@ BASE = Path(__file__).parent
 templates = Jinja2Templates(directory=str(BASE / "templates"))
 templates.env.globals["money"] = charts.money
 templates.env.globals["amount"] = charts.amount
+templates.env.globals["cur_label"] = lambda: "Euro" if charts.currency()[0] == "EUR" else "USD"
 
 
 def _ago(ts):
@@ -70,6 +73,10 @@ CSP = (
     "default-src 'none'; style-src 'self'; img-src 'self'; font-src 'self'; script-src 'none'; "
     "form-action 'self'; manifest-src 'self'; frame-ancestors 'none'; base-uri 'none'"
 )
+
+
+# Nur Login- und Einstellungsseite dürfen das eigene Passkey-Skript laden (Face ID braucht JavaScript).
+CSP_PASSKEY = CSP.replace("script-src 'none'", "script-src 'self'; connect-src 'self'")
 
 
 class SecurityHeaders:
@@ -106,7 +113,7 @@ class SecurityHeaders:
                 if is_https:  # nur über HTTPS: Browser soll nie wieder unverschlüsselt fragen
                     h.append((b"strict-transport-security", b"max-age=31536000"))
                 for k, v in (
-                    ("content-security-policy", CSP),
+                    ("content-security-policy", CSP_PASSKEY if scope.get("path") in ("/login", "/settings") else CSP),
                     ("x-content-type-options", "nosniff"),
                     ("x-frame-options", "DENY"),
                     ("referrer-policy", "no-referrer"),
@@ -156,6 +163,7 @@ def render(request: Request, name: str, ctx: dict | None = None, status: int = 2
     ctx["csrf"] = auth.csrf_token(request.session)
     ctx.setdefault("user", None)
     ctx["flash"] = request.session.pop("flash", None)
+    ctx["theme"] = db.get_setting("theme", "auto") if db.user_count() else "auto"
     if ctx["user"] and name in ("dashboard.html", "platform.html"):
         running = _collect_lock.locked() or any(not t.done() for t in _bg_tasks)
         waiting = request.session.get("await_collect")
@@ -175,7 +183,24 @@ def render(request: Request, name: str, ctx: dict | None = None, status: int = 2
         nxt = max(0, int((last + interval * 60 - time.time()) / 60)) if last else None
         ctx["status"] = {"interval": interval, "next_in": nxt,
                          "frac": round(1 - nxt / interval, 3) if nxt is not None else 0}
+        try:
+            ct = json.loads(db.get_setting("containers", "{}"))
+        except ValueError:
+            ct = {}
+        if ct.get("services") and time.time() - ct.get("ts", 0) < 20 * 60:
+            svc = ct["services"]
+            up = sum(1 for x in svc if x["state"] == "running" and x.get("health") != "unhealthy")
+            ctx["status"]["containers"] = {"up": up, "total": len(svc),
+                                           "down": [x["label"] for x in svc if x["state"] != "running" or x.get("health") == "unhealthy"]}
     return templates.TemplateResponse(request, name, ctx, status_code=status)
+
+
+def _json_setting(key: str) -> dict:
+    try:
+        v = json.loads(db.get_setting(key, "{}"))
+        return v if isinstance(v, dict) else {}
+    except ValueError:
+        return {}
 
 
 def flash(request: Request, msg: str, kind: str = "ok"):
@@ -251,6 +276,10 @@ async def collect_all() -> list:
                     db.add_run(res.platform, False, res.message)
                     log.warning("%s: %s", rmeta["name"], res.message)
                 results.append(res)
+        try:
+            achievements.evaluate(stats.compute())
+        except Exception:
+            log.exception("Fehler bei den Erfolgen")
     return results
 
 
@@ -509,7 +538,12 @@ async def dashboard(request: Request):
     months = ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August",
               "September", "Oktober", "November", "Dezember"]
     duino = next((p for p in data["platforms"] if p["id"] == "duinocoin"), None)
+    try:
+        achievements.evaluate(data)
+    except Exception:
+        log.exception("Fehler bei den Erfolgen")
     return render(request, "dashboard.html", {
+        "ach": achievements.overview(data),
         "user": user,
         "d": data,
         "view": view,
@@ -517,12 +551,12 @@ async def dashboard(request: Request):
         "greeting": greeting,
         "today_str": f"{weekdays[now.weekday()]}, {now.day}. {months[now.month - 1]}",
         "bar_svg": charts.bar_chart(data["chart"]),
+        "heat_svg": charts.heatmap(data["heat"]),
         "hero_svg": charts.hero_spark(data["hero_spark"]),
         "share_svg": charts.share_bar(data["share"]),
         "miners_svg": charts.miners(duino["info"].get("rigs", [])) if duino and duino["configured"] else None,
         "duino": duino,
         "sparks": {p["id"]: charts.spark(p["spark"], p["color"]) for p in data["platforms"]},
-        "eur_rate": float(db.get_setting("eur_rate", "0") or 0),
         "names": {k: v["name"] for k, v in PLATFORMS.items()},
         "units": {k: v["unit"] for k, v in PLATFORMS.items()},
     })
@@ -548,6 +582,7 @@ async def platform_page(request: Request):
         "bars_svg": charts.platform_bars(det["bars"], p["color"], p["unit"], det["avg"]),
         "area_svg": charts.balance_area(det["balance"], p["color"], p["unit"]),
         "wd_svg": charts.weekday_bars(det["weekday"], p["color"], p["unit"]),
+        "heat_svg": charts.heatmap(det["heat"], p["unit"]),
         "miners_svg": charts.miners(p["info"].get("rigs", [])) if pf == "duinocoin" and p["configured"] else None,
         "others": [(k, v["name"], v["short"]) for k, v in PLATFORMS.items()],
     })
@@ -578,6 +613,131 @@ def _back_target(form) -> str:
     if back.startswith("/p/") and back[3:] in PLATFORMS:
         return back
     return "/"
+
+
+# --------------------------------------------------------------------------
+# Passkeys (Face ID / Touch ID)
+# --------------------------------------------------------------------------
+def _rp(request: Request) -> tuple[str, str] | None:
+    """RP-ID (Domain) und erwartete Herkunft. Passkeys gehen nur mit einem Namen, nicht mit einer IP."""
+    host = (request.headers.get("x-forwarded-host") or request.headers.get("host") or "").split(",")[0].strip()
+    name = host.rsplit(":", 1)[0] if host.count(":") == 1 else host
+    if not name or name.replace(".", "").isdigit() or ":" in name or "[" in name:
+        return None
+    if not all(c.isalnum() or c in ".-" for c in name) or len(name) > 253:
+        return None
+    scheme = "http" if name == "localhost" else "https"   # Browser erlauben WebAuthn nur über HTTPS (oder localhost)
+    return name.lower(), f"{scheme}://{host.lower()}"
+
+
+async def _checked_json(request: Request) -> dict | None:
+    """JSON-Anfrage: Content-Type, Herkunft und CSRF-Token (im Header) prüfen."""
+    if not request.headers.get("content-type", "").startswith("application/json"):
+        return None
+    origin = request.headers.get("origin")
+    hosts = {request.headers.get("host"), request.headers.get("x-forwarded-host")}
+    if not origin or urlparse(origin).netloc not in hosts:
+        return None
+    if not auth.csrf_ok(request.session, request.headers.get("x-csrf-token")):
+        return None
+    try:
+        data = json.loads(await request.body())
+    except ValueError:
+        return None
+    return data if isinstance(data, dict) else None
+
+
+def _jerr(msg: str, status: int = 400) -> JSONResponse:
+    return JSONResponse({"ok": False, "error": msg}, status_code=status)
+
+
+async def passkey_api(request: Request):
+    step = request.path_params["step"]
+    data = await _checked_json(request)
+    if data is None:
+        return _jerr("Ungültige Anfrage – Seite neu laden.", 403)
+    rp = _rp(request)
+    if rp is None:
+        return _jerr("Passkeys funktionieren nur über deine Tailscale-Adresse (…ts.net), nicht über die IP.")
+    rp_id, origin = rp
+    ip = client_ip(request)
+
+    if step == "register-options":
+        user = current_user(request)
+        if not user:
+            return _jerr("Bitte anmelden.", 401)
+        if wait := auth.throttle.try_acquire(f"pwchange:{user['id']}", global_=False):
+            return _jerr(f"Zu viele Versuche. Bitte {wait // 60 + 1} Min. warten.", 429)
+        if not await run_in_threadpool(auth.verify_password, str(data.get("password", ""))[:200], user["pw_hash"]):
+            return _jerr("Passwort ist falsch.", 401)
+        auth.throttle.success(f"pwchange:{user['id']}")
+        ch = webauthn.new_challenge()
+        request.session["pk_reg"] = {"c": ch, "t": int(time.time()), "rp": rp_id}
+        return JSONResponse({"ok": True, "options": webauthn.registration_options(
+            user["id"], user["username"], rp_id, ch, [p["cred_id"] for p in db.passkeys(user["id"])])})
+
+    if step == "register-finish":
+        user = current_user(request)
+        st = request.session.pop("pk_reg", None)
+        if not user or not st or time.time() - st["t"] > 300 or st["rp"] != rp_id:
+            return _jerr("Zeit abgelaufen – bitte nochmal.", 400)
+        try:
+            res = webauthn.verify_registration(data.get("response") or {}, st["c"], origin, rp_id)
+        except (webauthn.WebAuthnError, ValueError, TypeError, KeyError, AttributeError) as e:
+            log.warning("Passkey-Registrierung abgelehnt: %s", e)
+            return _jerr(f"Passkey abgelehnt: {e}")
+        if db.passkey_by_cred(res["cred_id"]):
+            return _jerr("Dieser Passkey ist schon gespeichert.")
+        name = "".join(ch for ch in str(data.get("name") or notify.short_agent(request.headers.get("user-agent", "")))
+                       if ch.isprintable())[:60] or "Passkey"
+        db.add_passkey(user["id"], res["cred_id"], res["public_key"], res["alg"], res["sign_count"], rp_id, name)
+        notify.send("security", "🔑 Neuer Passkey hinzugefügt", f"„{name}“ kann sich jetzt per Face ID bei EarnWatch anmelden.",
+                    priority=4, tags=["key"])
+        flash(request, f"Passkey „{name}“ gespeichert – ab jetzt geht der Login per Face ID.")
+        return JSONResponse({"ok": True})
+
+    if step == "login-options":
+        if wait := auth.throttle.blocked(ip):
+            return _jerr(f"Zu viele Versuche. Bitte {wait // 60 + 1} Min. warten.", 429)
+        ch = webauthn.new_challenge()
+        request.session["pk_auth"] = {"c": ch, "t": int(time.time()), "rp": rp_id}
+        return JSONResponse({"ok": True, "options": {"challenge": ch, "rpId": rp_id, "timeout": 120000,
+                                                    "userVerification": "required", "allowCredentials": []}})
+
+    if step == "login-finish":
+        st = request.session.pop("pk_auth", None)
+        if not st or time.time() - st["t"] > 300 or st["rp"] != rp_id:
+            return _jerr("Zeit abgelaufen – bitte nochmal.")
+        if wait := auth.throttle.try_acquire(ip):
+            return _jerr(f"Zu viele Versuche. Bitte {wait // 60 + 1} Min. warten.", 429)
+        stored = db.passkey_by_cred(str(data.get("id", ""))[:1500])
+        user = db.get_user(stored["user_id"]) if stored else None
+        try:
+            if not stored or not user or stored["rp_id"] != rp_id:
+                raise webauthn.WebAuthnError("Unbekannter Passkey")
+            count = webauthn.verify_assertion(data.get("response") or {}, stored, st["c"], origin)
+            if not db.passkey_used(stored["id"], stored["sign_count"], count):
+                raise webauthn.WebAuthnError("Passkey gleichzeitig benutzt")
+        except (webauthn.WebAuthnError, ValueError, TypeError, KeyError, AttributeError) as e:
+            log.warning("Passkey-Login abgelehnt von %s: %s", ip, e)
+            return _jerr("Passkey-Anmeldung fehlgeschlagen.", 401)
+        auth.throttle.success(ip)
+        request.session.clear()
+        request.session.update({"uid": user["id"], "ver": user["session_ver"], "since": int(time.time()), "long": True})
+        log.info("Login '%s' per Passkey von %s", user["username"], ip)
+        notify.send("login", "🔐 Neue Anmeldung bei EarnWatch",
+                    f"Benutzer {user['username']} (Passkey „{stored['name']}“) · {notify.short_agent(request.headers.get('user-agent', ''))} · IP {ip}",
+                    priority=3, tags=["lock"], dedupe=f"login:{ip}", dedupe_seconds=60)
+        return JSONResponse({"ok": True, "next": "/"})
+
+    return _jerr("Unbekannt", 404)
+
+
+async def achievements_page(request: Request):
+    user = current_user(request)
+    if not user:
+        return redirect("/login" if db.user_count() else "/setup")
+    return render(request, "achievements.html", {"user": user, "ach": achievements.overview(stats.compute())})
 
 
 async def collect_now(request: Request):
@@ -614,8 +774,16 @@ async def settings_page(request: Request):
         "platforms": PLATFORMS,
         "configured": conf,
         "runs": db.last_runs(),
+        "containers": _json_setting("containers"),
+        "exp": {pf: int(db.get_setting(f"cred_exp_{pf}", "") or 0) for pf in conf},
+        "now": time.time(),
         "interval": db.get_setting("interval_min", str(config.INTERVAL_MIN_DEFAULT)),
-        "eur_rate": db.get_setting("eur_rate", ""),
+        "passkeys": db.passkeys(user["id"]),
+        "widget_ts": int(db.get_setting("widget_token_ts", "0") or 0) if db.get_setting("widget_token_hash", "") else 0,
+        "currency": db.get_setting("currency", "USD"),
+        "theme": db.get_setting("theme", "auto"),
+        "eur_rate": float(db.get_setting("eur_rate", "0") or 0),
+        "eur_rate_ts": int(db.get_setting("eur_rate_ts", "0") or 0),
     })
 
 
@@ -694,23 +862,54 @@ async def settings_save(request: Request):
         if pf in PLATFORMS:
             db.delete_credentials(pf)
             flash(request, f"Zugangsdaten für {PLATFORMS[pf]['name']} gelöscht.")
+    elif what == "passkey_delete":
+        try:
+            pk = int(form.get("id", "0"))
+        except ValueError:
+            pk = 0
+        if db.delete_passkey(user["id"], pk):
+            notify.send("security", "🔑 Passkey entfernt", "Ein Passkey wurde aus EarnWatch gelöscht.", priority=3, tags=["key"])
+            flash(request, "Passkey gelöscht.")
+        return redirect("/settings#passkeys")
+    elif what == "widget":
+        if form.get("action") == "delete":
+            db.set_setting("widget_token_hash", "")
+            flash(request, "Widget-Schlüssel gelöscht – das Widget zeigt jetzt nichts mehr an.")
+        else:
+            token = "ew_" + secrets.token_urlsafe(32)
+            db.set_setting("widget_token_hash", hashlib.sha256(token.encode()).hexdigest())
+            db.set_setting("widget_token_ts", str(int(time.time())))
+            notify.send("security", "📱 Widget-Schlüssel erstellt",
+                        f"Für EarnWatch wurde ein neuer Widget-Schlüssel erzeugt ({user['username']}).", priority=3, tags=["iphone"])
+            host = request.headers.get("x-forwarded-host") or request.headers.get("host") or ""
+            return render(request, "widget.html", {"user": user, "token": token,
+                                                    "api_url": f"https://{host}/api/widget"})
+        return redirect("/settings#widget")
     elif what == "general":
         try:
             interval = int(form.get("interval", "60"))
             if not 15 <= interval <= 1440:
                 raise ValueError
             db.set_setting("interval_min", str(interval))
-            rate = form.get("eur_rate", "").replace(",", ".").strip()
-            if rate:
-                r = float(rate)
-                if not 0 < r < 10:
-                    raise ValueError
-                db.set_setting("eur_rate", str(r))
-            else:
-                db.set_setting("eur_rate", "0")
-            flash(request, "Einstellungen gespeichert.")
+            cur = form.get("currency", "USD")
+            if cur not in ("USD", "EUR"):
+                raise ValueError
+            theme = form.get("theme", "auto")
+            if theme not in ("auto", "dark", "light"):
+                raise ValueError
+            db.set_setting("theme", theme)
+            db.set_setting("currency", cur)
+            msg = "Einstellungen gespeichert."
+            if cur == "EUR":
+                rate = await run_in_threadpool(fx.update_now)
+                if rate:
+                    msg += f" Aktueller EZB-Kurs: 1 $ = {rate:.4f} €".replace(".", ",")
+                elif float(db.get_setting("eur_rate", "0") or 0) <= 0:
+                    msg = "Euro gespeichert, aber der EZB-Kurs ist gerade nicht erreichbar – bis dahin wird in $ angezeigt."
+            charts.reset_currency_cache()
+            flash(request, msg)
         except ValueError:
-            flash(request, "Intervall 15–1440 Minuten, Kurs z. B. 0,92.", "err")
+            flash(request, "Intervall 15–1440 Minuten.", "err")
     elif what == "password":
         old, new, new2 = form.get("old", ""), form.get("new", ""), form.get("new2", "")
         if wait := auth.throttle.try_acquire(f"pwchange:{user['id']}", global_=False):
@@ -742,6 +941,83 @@ async def export_csv(request: Request):
                     headers={"content-disposition": 'attachment; filename="earnwatch.csv"'})
 
 
+async def live_css(request: Request):
+    """Live-Geldzähler ohne JavaScript: Startwert + Tempo als CSS-Animation (zählt eine Stunde lang hoch)."""
+    css = "/* nicht angemeldet */"
+    if current_user(request):
+        d = stats.compute("day", "week")
+        code, rate = charts.currency()
+        bal = d["totals"]["balance"] * rate
+        per_sec = max(0.0, d["totals"]["d7_usd"] / 7 / 86400 * rate) if "d7_usd" in d["totals"] else 0.0
+        dec = 5 if bal < 20000 else 3
+        scale = 10 ** dec
+        n0 = int(bal * scale)
+        n1 = int((bal + per_sec * 3600) * scale)
+        if per_sec > 0 and n1 > n0 and n1 < 2_000_000_000:
+            sym_pre, sep, sym_post = ("$", ".", "") if code == "USD" else ("", ",", " €")
+            # Nachkommastellen in Ziffern-Gruppen zerlegen (CSS-Zähler können nur 2 Stellen mit Null auffüllen)
+            groups, rest = [], dec
+            while rest > 0:
+                g = 2 if rest >= 2 else 1
+                groups.append(g)
+                rest -= g
+            props, decls, parts = ["la"], [f"--la:calc((var(--lv) - mod(var(--lv),{scale})) / {scale})"], []
+            used = 0
+            for k, g in enumerate(groups):
+                lo = 10 ** (dec - used - g)
+                hi = 10 ** (dec - used)
+                name = f"l{k}"
+                props.append(name)
+                decls.append(f"--{name}:calc((mod(var(--lv),{hi}) - mod(var(--lv),{lo})) / {lo})")
+                parts.append(f"counter({name},decimal-leading-zero)" if g == 2 else f"counter({name})")
+                used += g
+            regs = "\n".join(f"@property --{n}{{{{syntax:'<integer>';inherits:false;initial-value:0}}}}" for n in ["lv"] + props)
+            css = (regs.replace("{{", "{").replace("}}", "}") + f"""
+@keyframes lvc{{from{{--lv:{n0}}}to{{--lv:{n1}}}}}
+@supports (top:mod(3px,2px)){{
+@media (prefers-reduced-motion:no-preference){{
+.live .st{{display:none}}
+.live .lv{{display:inline;--lv:{n0};animation:lvc 3600s linear forwards;{";".join(decls)};
+  counter-reset:{" ".join(f"{n} var(--{n})" for n in props)}}}
+.live .lv::after{{content:"{sym_pre}" counter(la) "{sep}" {" ".join(parts)} "{sym_post}"}}
+.livetag{{display:inline-flex}}
+}}}}""")
+    return Response(css, media_type="text/css; charset=utf-8")
+
+
+_api_throttle = auth.LoginThrottle(per_ip=10, global_max=200, window=900)   # eigene Bremse, sperrt nie den Login
+
+
+async def api_widget(request: Request):
+    """Nur-Lese-Schnittstelle fürs iPhone-Widget. Schlüssel im Header, nur zusammengefasste Zahlen."""
+    ip = client_ip(request)
+    key = f"api:{ip}"
+    if wait := _api_throttle.blocked(key):
+        return JSONResponse({"error": "zu viele Versuche"}, status_code=429, headers={"retry-after": str(wait)})
+    stored = db.get_setting("widget_token_hash", "")
+    hdr = request.headers.get("authorization", "")
+    tok = hdr[7:].strip() if hdr.lower().startswith("bearer ") else ""
+    if not stored or not tok or len(tok) > 200 or not hmac.compare_digest(
+            hashlib.sha256(tok.encode()).hexdigest(), stored):
+        _api_throttle.fail(key)
+        return JSONResponse({"error": "ungültiger Schlüssel"}, status_code=401)
+    d = stats.compute("day", "today")
+    t = d["totals"]
+    code, _ = charts.currency()
+    top = sorted((p for p in d["platforms"] if p["configured"] and p["fac"]), key=lambda p: -p["today"] * p["fac"])[:4]
+    return JSONResponse({
+        "currency": code,
+        "balance": round(t["balance"], 4), "balance_fmt": charts.money(t["balance"]),
+        "today_fmt": charts.money(t["today"]), "week_fmt": charts.money(t["week"]),
+        "month_fmt": charts.money(t["month"]),
+        "devices_online": d["devices"]["online"], "devices_total": d["devices"]["total"],
+        "streak": d["streaks"]["current"],
+        "top": [{"name": p["name"], "today_fmt": charts.money(p["today"] * p["fac"])} for p in top],
+        "errors": sum(1 for p in d["platforms"] if p["configured"] and p["run"] and not p["run"]["ok"]),
+        "updated": int(db.get_setting("last_collect_ts", "0") or 0),
+    })
+
+
 async def healthz(request: Request):
     return PlainTextResponse("ok")
 
@@ -754,11 +1030,17 @@ async def lifespan(app):
             log.warning("Noch kein Konto angelegt. Einrichtungs-Token = EW_SETUP_TOKEN aus deiner .env")
         else:
             log.warning("Noch kein Konto angelegt. Einrichtungs-Token: %s", config.setup_token())
+    try:
+        events.scan_expiry()
+    except Exception:
+        log.exception("Ablauf-Scan fehlgeschlagen")
     task = asyncio.create_task(scheduler())
     task2 = asyncio.create_task(events.summary_loop())
+    task3 = asyncio.create_task(fx.fx_loop())
     yield
     task.cancel()
     task2.cancel()
+    task3.cancel()
 
 
 routes = [
@@ -770,11 +1052,15 @@ routes = [
     Route("/2fa/setup", twofa_setup, methods=["GET", "POST"]),
     Route("/2fa/{action:str}", twofa_manage, methods=["POST"]),
     Route("/p/{pf:str}", platform_page),
+    Route("/erfolge", achievements_page),
+    Route("/passkey/{step:str}", passkey_api, methods=["POST"]),
     Route("/collect", collect_now, methods=["POST"]),
     Route("/settings", settings_page),
     Route("/settings/{what:str}", settings_save, methods=["POST"]),
     Route("/export.csv", export_csv),
     Route("/healthz", healthz),
+    Route("/live.css", live_css),
+    Route("/api/widget", api_widget),
     Mount("/static", StaticFiles(directory=str(BASE / "static")), name="static"),
 ]
 

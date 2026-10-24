@@ -49,6 +49,18 @@ CREATE TABLE IF NOT EXISTS settings (
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS passkeys (
+    id INTEGER PRIMARY KEY,
+    user_id INTEGER NOT NULL,
+    cred_id TEXT UNIQUE NOT NULL,
+    public_key TEXT NOT NULL,
+    alg INTEGER NOT NULL,
+    sign_count INTEGER NOT NULL DEFAULT 0,
+    rp_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    created INTEGER NOT NULL,
+    last_used INTEGER
+);
 """
 
 
@@ -191,6 +203,34 @@ def save_credentials(platform: str, data: dict) -> None:
             "ON CONFLICT(platform) DO UPDATE SET blob=excluded.blob, updated=excluded.updated",
             (platform, crypto.encrypt(data), int(time.time())),
         )
+    remember_expiry(platform, data)
+
+
+def token_expiry(data: dict) -> int | None:
+    """Liest das Ablaufdatum aus Tokens im JWT-Format (z. B. Grass). Nur lesen, nichts prüfen/senden."""
+    import base64
+    import json as _json
+    best = None
+    for v in (data or {}).values():
+        v = str(v or "").strip().strip('"')
+        if v.lower().startswith("bearer "):
+            v = v[7:]
+        parts = v.split(".")
+        if len(parts) != 3 or len(v) > 8000:
+            continue
+        try:
+            payload = _json.loads(base64.urlsafe_b64decode(parts[1] + "=" * (-len(parts[1]) % 4)))
+            exp = int(payload.get("exp")) if isinstance(payload, dict) and payload.get("exp") else None
+        except (ValueError, TypeError):
+            continue
+        if exp and 1_500_000_000 < exp < 4_000_000_000:
+            best = exp if best is None else min(best, exp)
+    return best
+
+
+def remember_expiry(platform: str, data: dict) -> None:
+    exp = token_expiry(data)
+    set_setting(f"cred_exp_{platform}", str(exp or ""))
 
 
 def load_credentials(platform: str) -> dict | None:
@@ -205,6 +245,7 @@ def configured_platforms() -> dict[str, int]:
 
 
 def delete_credentials(platform: str) -> None:
+    set_setting(f"cred_exp_{platform}", "")
     with conn() as c:
         c.execute("DELETE FROM credentials WHERE platform=?", (platform,))
 
@@ -281,3 +322,33 @@ def set_setting(key: str, value: str) -> None:
             "ON CONFLICT(key) DO UPDATE SET value=excluded.value",
             (key, value),
         )
+
+
+# --- Passkeys (Face ID / Touch ID) ----------------------------------------
+def add_passkey(uid: int, cred_id: str, public_key: str, alg: int, sign_count: int, rp_id: str, name: str) -> None:
+    with conn() as c:
+        c.execute("INSERT INTO passkeys (user_id, cred_id, public_key, alg, sign_count, rp_id, name, created) "
+                  "VALUES (?,?,?,?,?,?,?,?)", (uid, cred_id, public_key, alg, sign_count, rp_id, name[:60], int(time.time())))
+
+
+def passkeys(uid: int) -> list:
+    with conn() as c:
+        return c.execute("SELECT * FROM passkeys WHERE user_id=? ORDER BY created", (uid,)).fetchall()
+
+
+def passkey_by_cred(cred_id: str):
+    with conn() as c:
+        return c.execute("SELECT * FROM passkeys WHERE cred_id=?", (cred_id,)).fetchone()
+
+
+def passkey_used(pk_id: int, old_count: int, new_count: int) -> bool:
+    """Zähler atomar hochsetzen – schlägt fehl, wenn parallel schon benutzt (Schutz gegen Klone/Replay)."""
+    with conn() as c:
+        cur = c.execute("UPDATE passkeys SET sign_count=?, last_used=? WHERE id=? AND sign_count=?",
+                        (new_count, int(time.time()), pk_id, old_count))
+        return cur.rowcount == 1
+
+
+def delete_passkey(uid: int, pk_id: int) -> bool:
+    with conn() as c:
+        return c.execute("DELETE FROM passkeys WHERE id=? AND user_id=?", (pk_id, uid)).rowcount == 1

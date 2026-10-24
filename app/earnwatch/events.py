@@ -89,6 +89,36 @@ def summary_text() -> tuple[str, str]:
     return f"📊 EarnWatch: {charts.money(t['today'])} heute", "\n".join(lines)
 
 
+def check_expiry() -> None:
+    """Warnt 3 Tage vorher, wenn ein kopierter Login-Token (z. B. Grass) abläuft – einmal pro Token."""
+    import time
+    from .collectors import PLATFORMS
+    for pf in db.configured_platforms():
+        try:
+            exp = int(db.get_setting(f"cred_exp_{pf}", "") or 0)
+        except ValueError:
+            continue
+        if not exp:
+            continue
+        left = (exp - time.time()) / 86400
+        if left <= 3 and db.get_setting(f"exp_notified_{pf}", "") != str(exp):
+            name = PLATFORMS.get(pf, {}).get("name", pf)
+            when = "ist abgelaufen" if left <= 0 else f"läuft in {max(1, round(left))} Tag{'en' if round(left) != 1 else ''} ab"
+            notify.send("expiry", f"⏳ {name}: Login {when}",
+                        "Bitte in EarnWatch → Einstellungen den Token/Cookie neu eintragen, sonst stoppt die Abfrage.",
+                        priority=4, tags=["hourglass"])
+            db.set_setting(f"exp_notified_{pf}", str(exp))
+
+
+def scan_expiry() -> None:
+    """Beim Start einmal alle gespeicherten Zugänge auf Ablaufdatum prüfen (für ältere Einträge)."""
+    for pf in db.configured_platforms():
+        try:
+            db.remember_expiry(pf, db.load_credentials(pf) or {})
+        except Exception:
+            log.warning("Ablaufdatum für %s nicht lesbar", pf)
+
+
 async def summary_loop():
     """Schickt einmal am Tag zur gewählten Stunde die Zusammenfassung."""
     await asyncio.sleep(30)
@@ -104,4 +134,8 @@ async def summary_loop():
                 db.set_setting("summary_sent", today)
         except Exception:
             log.exception("Fehler bei der Tageszusammenfassung")
+        try:
+            check_expiry()
+        except Exception:
+            log.exception("Fehler bei der Ablauf-Prüfung")
         await asyncio.sleep(300)

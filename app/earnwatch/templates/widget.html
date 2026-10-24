@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}iPhone-Widget · EarnWatch{% endblock %}
+{% block content %}
+<header class="pagehead"><div><div class="date"><a href="/settings#widget">‹ Einstellungen</a></div><h1>iPhone-Widget einrichten</h1></div></header>
+<section class="card setcard">
+  <div class="flash warn">Dieser Schlüssel wird <b>nur jetzt</b> angezeigt. Er erlaubt nur das Lesen deiner Summen – kein Login, keine Änderungen.</div>
+  {% if api_url.split('/')[2][:1].isdigit() %}<div class="flash err">Du hast EarnWatch gerade über die IP-Adresse geöffnet. Deren Zertifikat akzeptiert das iPhone-Widget nicht. Öffne EarnWatch über deine <b>Tailscale-Adresse</b> (…ts.net) und erzeuge den Schlüssel dort neu.</div>{% endif %}
+  <ol class="howto big">
+    <li>App <b>„Scriptable“</b> aus dem App Store installieren (kostenlos).</li>
+    <li>In Scriptable oben rechts <b>„+“</b> → den Text unten komplett einfügen → oben als Namen <b>EarnWatch</b> eingeben.</li>
+    <li>Home-Bildschirm lange drücken → <b>„+“</b> → Scriptable → Größe wählen → Widget antippen → bei <i>Script</i> <b>EarnWatch</b> auswählen.</li>
+    <li>Unterwegs muss <b>Tailscale</b> auf dem iPhone an sein (die Adresse unten ist deine Tailscale-Adresse, falls du EarnWatch darüber geöffnet hast).</li>
+  </ol>
+  <label>Skript für Scriptable (antippen, alles auswählen, kopieren)
+  <textarea class="code" readonly rows="18" spellcheck="false">// EarnWatch-Widget für Scriptable – zeigt nur Summen an
+const API = "{{ api_url }}";
+const KEY = "{{ token }}";
+
+const req = new Request(API);
+req.headers = { Authorization: "Bearer " + KEY };
+req.timeoutInterval = 15;
+let d = null;
+try { d = await req.loadJSON(); } catch (e) {}
+
+const w = new ListWidget();
+const g = new LinearGradient();
+g.colors = [new Color("#101a33"), new Color("#05070d")];
+g.locations = [0, 1];
+w.backgroundGradient = g;
+w.setPadding(14, 14, 14, 14);
+w.url = API.replace("/api/widget", "/");
+const lime = new Color("#c8f55a"), grey = new Color("#ffffff", 0.6);
+const small = config.widgetFamily === "small" || !config.runsInWidget;
+
+const head = w.addText("EarnWatch");
+head.font = Font.semiboldSystemFont(11); head.textColor = lime;
+w.addSpacer(4);
+
+if (!d || d.error) {
+  const t = w.addText(d && d.error ? d.error : "nicht erreichbar – Tailscale an?");
+  t.font = Font.systemFont(12); t.textColor = grey;
+} else {
+  const b = w.addText(d.balance_fmt);
+  b.font = Font.boldRoundedSystemFont(26); b.textColor = Color.white(); b.minimumScaleFactor = 0.5; b.lineLimit = 1;
+  const t = w.addText("+" + d.today_fmt + " heute");
+  t.font = Font.semiboldRoundedSystemFont(13); t.textColor = new Color("#6ff0be");
+  if (!small) {
+    w.addSpacer(6);
+    const s = w.addText("Woche " + d.week_fmt + "  ·  Monat " + d.month_fmt);
+    s.font = Font.systemFont(11); s.textColor = grey;
+    for (const p of d.top.slice(0, 2)) {
+      const r = w.addText(p.name + "  +" + p.today_fmt);
+      r.font = Font.systemFont(11); r.textColor = grey;
+    }
+  }
+  w.addSpacer();
+  let foot = "🖥 " + d.devices_online + "/" + d.devices_total + "  🔥 " + d.streak;
+  if (d.errors > 0) foot += "  ⚠️ " + d.errors;
+  const f = w.addText(foot);
+  f.font = Font.mediumSystemFont(10); f.textColor = grey;
+}
+w.refreshAfterDate = new Date(Date.now() + 15 * 60 * 1000);
+if (config.runsInWidget) { Script.setWidget(w); } else { await w.presentSmall(); }
+Script.complete();</textarea></label>
+  <p class="small muted">Schlüssel verloren oder Handy weg? In den Einstellungen einfach einen neuen erzeugen – der alte ist dann sofort ungültig.</p>
+  <a class="btn primary sm" href="/settings#widget">Fertig</a>
+</section>
+{% endblock %}

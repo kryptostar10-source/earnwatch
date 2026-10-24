@@ -147,6 +147,24 @@ Gespeichert werden dabei nur Zahlen – keine Gerätenamen oder IP-Adressen.
 „Jetzt abrufen“ läuft im Hintergrund: Die Seite lädt sich alle paar Sekunden selbst neu, bis alle Anbieter
 geantwortet haben, und zeigt dann das Ergebnis.
 
+## Extras
+
+- **Kalender-Heatmap** („Dein Jahr“) auf der Übersicht und jeder Plattform-Seite, mit Serie und Rekord.
+- **Live-Zähler:** Das Guthaben oben zählt live hoch (hochgerechnet aus dem 7-Tage-Schnitt) – reines CSS, kein JavaScript.
+- **Erfolge** unter `/erfolge` (z. B. „Erste 100 $“, „30 Tage am Stück“) – neue gibt’s auch als Handy-Nachricht.
+- **Hell-Modus:** Einstellungen → Design (automatisch wie iPhone/PC, immer hell oder immer dunkel).
+- **Euro:** Einstellungen → Währung → Euro. Der Kurs kommt automatisch täglich von der EZB.
+- **iPhone-Widget:** Einstellungen → iPhone-Widget → Schlüssel erzeugen und das angezeigte Skript in die App
+  „Scriptable“ kopieren. Der Schlüssel darf nur Summen lesen (kein Login, keine Änderungen) und ist jederzeit widerrufbar.
+  Am besten über die Tailscale-Adresse einrichten.
+- **Face ID / Passkey:** Einstellungen → Face ID / Passkey → hinzufügen. Danach auf der Login-Seite „Mit Face ID anmelden“.
+  Geht nur über die Tailscale-Adresse (…ts.net), weil Passkeys an einen Namen gebunden sind, nicht an eine IP.
+  Das ist die einzige Stelle mit JavaScript (eigene Datei, nur auf Login- und Einstellungsseite erlaubt).
+- **Ablauf-Warnung:** Kopierte Tokens (z. B. Grass) werden auf ihr Ablaufdatum geprüft – 3 Tage vorher kommt eine Nachricht.
+- **Container-Wächter** (`healthcheck.sh`, alle 5 Min. per systemd-Timer): startet gestoppte/abgestürzte Container neu und
+  meldet es aufs Handy. Bewusst pausierte Dienste in der `.env` eintragen: `HC_IGNORE=pawns,earnfm`.
+  EarnWatch selbst bekommt dafür keinen Docker-Zugriff.
+
 ## Honeygain-Verlauf
 
 Beim ersten Abruf übernimmt EarnWatch die Tageseinnahmen der letzten 30 Tage direkt von Honeygain

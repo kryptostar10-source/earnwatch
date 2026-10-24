@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Erfolge · EarnWatch{% endblock %}
+{% block content %}
+<header class="pagehead">
+  <div>
+    <div class="date"><a href="/">‹ Übersicht</a></div>
+    <h1>Erfolge</h1>
+  </div>
+  <span class="pill ok">{{ ach.count }} von {{ ach.total }} freigeschaltet</span>
+</header>
+<section class="achgrid">
+  {% for a in ach.all %}
+  <article class="card sm ach{{ ' got' if a.unlocked }}">
+    <div class="achicon" aria-hidden="true">{{ a.icon }}</div>
+    <div class="achtxt">
+      <b>{{ a.title }}</b>
+      <span>{{ a.desc }}</span>
+      {% if a.unlocked %}<small>freigeschaltet am {{ a.unlocked|dtfmt }}</small>
+      {% else %}<progress max="1" value="{{ a.progress }}" aria-label="Fortschritt"></progress><small>{{ a.val }} von {{ a.goal }}</small>{% endif %}
+    </div>
+  </article>
+  {% endfor %}
+</section>
+{% endblock %}

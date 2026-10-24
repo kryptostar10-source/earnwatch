@@ -178,6 +178,11 @@ def compute(view: str = "day", period: str = "week") -> dict:
         p["forecast"] = p["d7"] / 7 * 30
         p["progress"] = min(1.0, (bal or 0) / meta["min_payout"]) if meta["min_payout"] else None
         try:
+            exp = int(db.get_setting(f"cred_exp_{pf}", "") or 0)
+        except ValueError:
+            exp = 0
+        p["exp_days"] = (exp - dt.datetime.now().timestamp()) / 86400 if exp and pf in configured else None
+        try:
             p["info"] = json.loads(db.get_setting(f"info_{pf}", "{}"))
         except ValueError:
             p["info"] = {}
@@ -187,6 +192,7 @@ def compute(view: str = "day", period: str = "week") -> dict:
             for k in ("today", "week", "month", "year", "all", "forecast", "paid_out",
                       "prev_today", "prev_week", "prev_month", "prev_year"):
                 totals[k] += p[k] * fac
+            totals["d7_usd"] = totals.get("d7_usd", 0.0) + p["d7"] * fac
         platforms.append(p)
 
     dev = {"online": 0, "total": 0, "known": False}
@@ -212,6 +218,13 @@ def compute(view: str = "day", period: str = "week") -> dict:
         for pf, pts in by_pf.items() if pf in PLATFORMS and usd_factor(pf) is not None
     }
     payouts.sort(key=lambda x: x["ts"], reverse=True)
+
+    # Kalender-Heatmap: Einnahmen je Tag (USD) über ein Jahr + Serien
+    heat_days = {}
+    for i in range(370, -1, -1):
+        d = today - dt.timedelta(days=i)
+        heat_days[d] = sum(daily.get(p["id"], {}).get(d, 0.0) * p["fac"]
+                           for p in platforms if p["fac"] is not None and p["configured"])
 
     if period not in periods:
         period = "week"
@@ -242,6 +255,7 @@ def compute(view: str = "day", period: str = "week") -> dict:
 
     return {
         "period": period,
+        "heat": heat_days, "streaks": streaks(heat_days, first_day),
         "devices": dev,
         "growth": growth,
         "avg_day": cur / elapsed[period],
@@ -260,6 +274,32 @@ def compute(view: str = "day", period: str = "week") -> dict:
 
 
 WEEKDAYS = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"]
+
+
+def streaks(days: dict, first) -> dict:
+    """Aktive Tage, aktuelle und längste Serie (Tage am Stück mit Einnahmen)."""
+    longest = cur = run = 0
+    active = 0
+    items = sorted(days.items())
+    for d, v in items:
+        if first and d < first:
+            continue
+        if v > 0:
+            run += 1
+            active += 1
+            longest = max(longest, run)
+        else:
+            run = 0
+    # aktuelle Serie: heute zählt mit, wenn schon etwas reinkam, sonst ab gestern
+    rev = [v for d, v in items][::-1]
+    if rev and rev[0] <= 0:
+        rev = rev[1:]
+    for v in rev:
+        if v > 0:
+            cur += 1
+        else:
+            break
+    return {"active": active, "current": cur, "longest": longest}
 
 
 def platform_detail(pf: str, view: str = "day", period: str = "week") -> dict:
@@ -295,7 +335,9 @@ def platform_detail(pf: str, view: str = "day", period: str = "week") -> dict:
     balance = [(t, b) for t, b in pts if day_of(t) >= since]
     payouts = [x for x in base["_all_payouts"] if x["platform"] == pf]
     cur, prev = p.get(period, 0.0), p.get("prev_" + period, 0.0)
+    heat = {today - dt.timedelta(days=i): daily.get(today - dt.timedelta(days=i), 0.0) for i in range(370, -1, -1)}
     return {
+        "heat": heat, "streaks": streaks(heat, first),
         "p": p, "bars": bars, "avg": avg, "best": best, "active_days": active_days,
         "weekday": weekday, "balance": balance, "payouts": payouts[:25],
         "growth": ((cur / prev - 1) * 100) if prev > 0 else None,
