@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}Wiederherstellungscodes · EarnWatch{% endblock %}
+{% block content %}
+<header class="pagehead">
+  <div>
+    <div class="date">Einstellungen · Sicherheit</div>
+    <h1>{% if fresh %}2FA ist aktiv{% else %}Neue Wiederherstellungscodes{% endif %}</h1>
+  </div>
+</header>
+{% if fresh %}<div class="flash ok">Zwei-Faktor-Anmeldung eingeschaltet. Alle anderen Sitzungen wurden abgemeldet.</div>{% endif %}
+<section class="card twofa">
+  <div class="cardhead"><h2>Deine Wiederherstellungscodes</h2><span class="pill warn">nur jetzt sichtbar</span></div>
+  <p class="muted">Falls dein Handy weg ist, kommst du mit einem dieser Codes trotzdem rein – jeder funktioniert genau einmal.
+  <b>Schreib sie jetzt auf</b> oder speichere sie im Passwort-Manager. Sie werden nie wieder angezeigt.{% if not fresh %} Die alten Codes sind ab sofort ungültig.{% endif %}</p>
+  <ul class="codes mono">
+    {% for c in codes %}<li>{{ c }}</li>{% endfor %}
+  </ul>
+  <a href="/settings#2fa" class="btn primary">Ich habe die Codes gesichert</a>
+</section>
+{% endblock %}

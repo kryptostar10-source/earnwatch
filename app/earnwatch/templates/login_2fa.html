@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}Bestätigung · EarnWatch{% endblock %}
+{% block auth %}
+<form method="post" class="card authcard" autocomplete="off">
+  <div class="brand"><span class="logo"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0a0d11" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></span><span><b>Zwei-Faktor-Anmeldung</b><small>Code aus deiner Authenticator-App</small></span></div>
+  {% if error %}<div class="flash err">{{ error }}</div>{% endif %}
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <label>6-stelliger Code<input name="code" class="codeinput" inputmode="numeric" autocomplete="one-time-code" maxlength="20" required autofocus placeholder="123 456"></label>
+  <button class="btn primary">Bestätigen</button>
+  <p class="muted small">Handy nicht zur Hand? Gib stattdessen einen deiner Wiederherstellungscodes ein (z. B. <code>abcd-efgh-jkmn</code>). Jeder funktioniert nur einmal.</p>
+  <p class="small"><a href="/login">Abbrechen</a></p>
+</form>
+{% endblock %}

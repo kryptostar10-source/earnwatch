@@ -150,6 +150,19 @@ Ohne Schlüssel sind die gespeicherten Zugangsdaten nicht mehr lesbar; du müsst
 docker run --rm -v earnwatch_earnwatch_data:/d -v "$PWD":/b alpine tar czf /b/earnwatch-backup.tgz -C /d .
 ```
 
+**Zwei-Faktor-Anmeldung (2FA):** Unter *Einstellungen → Zwei-Faktor-Anmeldung → Mit QR-Code einrichten*
+den QR-Code mit einer Authenticator-App scannen (Google/Microsoft Authenticator, Aegis, 2FAS, Bitwarden …).
+Danach wird beim Login zusätzlich ein 6-stelliger Code abgefragt. Die 8 Wiederherstellungscodes sicher aufbewahren –
+jeder funktioniert einmal, falls das Handy weg ist.
+
+**Handy UND Wiederherstellungscodes verloren?** 2FA direkt auf dem Server abschalten:
+
+```bash
+cd /opt/earnwatch && sudo docker compose stop earnwatch
+sudo docker run --rm -v earnwatch_earnwatch_data:/d alpine sh -c "apk add -q sqlite && sqlite3 /d/earnwatch.db 'UPDATE users SET totp_secret=NULL, recovery=NULL, session_ver=session_ver+1'"
+sudo docker compose start earnwatch
+```
+
 **Passwort vergessen?** Container stoppen, Datenbank-Tabelle `users` leeren, neu starten und mit dem
 Einrichtungs-Token ein neues Konto anlegen:
 

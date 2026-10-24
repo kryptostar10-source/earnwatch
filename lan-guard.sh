@@ -11,8 +11,10 @@ TAG="earnwatch-lan-guard"
 command -v iptables >/dev/null || { echo "iptables fehlt – LAN-Sperre nicht möglich"; exit 1; }
 
 remove() {
-  while read -r n; do iptables -D DOCKER-USER "$n" 2>/dev/null || true
-  done < <(iptables -L DOCKER-USER --line-numbers -n 2>/dev/null | awk -v t="$TAG" '$0 ~ t {print $1}' | sort -rn)
+  for chain in DOCKER-USER INPUT; do
+    while read -r n; do iptables -D "$chain" "$n" 2>/dev/null || true
+    done < <(iptables -L "$chain" --line-numbers -n 2>/dev/null | awk -v t="$TAG" '$0 ~ t {print $1}' | sort -rn)
+  done
 }
 
 case "${1:-apply}" in
@@ -22,11 +24,14 @@ case "${1:-apply}" in
     for r in $RANGES; do
       iptables -I DOCKER-USER -s "$SUBNET" -d "$r" -m comment --comment "$TAG" -j DROP
     done
-    # Antworten auf bestehende Verbindungen (z. B. Docker-DNS) erlauben – ganz oben
+    # Auch den Docker-Host selbst sperren (SSH, Portainer, Proxmox-Dienste auf dieser VM).
+    # Docker-DNS (127.0.0.11) läuft im Container und ist davon nicht betroffen.
+    iptables -I INPUT -s "$SUBNET" -m conntrack ! --ctstate ESTABLISHED,RELATED -m comment --comment "$TAG" -j DROP
+    # Antworten auf bestehende Verbindungen erlauben – ganz oben
     iptables -I DOCKER-USER -s "$SUBNET" -m conntrack --ctstate ESTABLISHED,RELATED -m comment --comment "$TAG" -j RETURN
     echo "LAN-Sperre aktiv für $SUBNET"
     ;;
   remove) remove; echo "LAN-Sperre entfernt" ;;
-  status) iptables -L DOCKER-USER -n -v | grep "$TAG" || echo "keine Regeln aktiv" ;;
+  status) { iptables -L DOCKER-USER -n -v; iptables -L INPUT -n -v; } | grep "$TAG" || echo "keine Regeln aktiv" ;;
   *) echo "Aufruf: $0 [apply|remove|status]"; exit 2 ;;
 esac

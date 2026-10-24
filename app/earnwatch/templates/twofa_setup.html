@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}2FA einrichten · EarnWatch{% endblock %}
+{% block content %}
+<header class="pagehead">
+  <div>
+    <div class="date">Einstellungen · Sicherheit</div>
+    <h1>Zwei-Faktor-Anmeldung einrichten</h1>
+  </div>
+</header>
+<section class="card twofa">
+  <ol class="steps">
+    <li><b>Authenticator-App öffnen</b><span>z. B. Google Authenticator, Microsoft Authenticator, Aegis, 2FAS oder Bitwarden.</span></li>
+    <li><b>QR-Code scannen</b><span>In der App auf „+“ bzw. „Konto hinzufügen“ tippen.</span></li>
+    <li><b>Code eingeben</b><span>Den 6-stelligen Code aus der App unten eintragen.</span></li>
+  </ol>
+  <div class="twofa-grid">
+    <div class="qrbox">
+      {% if qr %}{{ qr }}{% else %}<p class="muted small">QR-Code nicht verfügbar – bitte den Schlüssel rechts von Hand eintragen.</p>{% endif %}
+    </div>
+    <div class="twofa-side">
+      <div>
+        <div class="small muted">Kein Scanner? Schlüssel von Hand eingeben:</div>
+        <div class="secret mono">{{ secret }}</div>
+        <div class="small muted">Typ: zeitbasiert (TOTP) · 6 Stellen · 30 Sekunden</div>
+      </div>
+      {% if error %}<div class="flash err">{{ error }}</div>{% endif %}
+      <form method="post" autocomplete="off">
+        <input type="hidden" name="csrf" value="{{ csrf }}">
+        <label>Code aus der App<input name="code" class="codeinput" inputmode="numeric" autocomplete="one-time-code" maxlength="10" required autofocus placeholder="123 456"></label>
+        <button class="btn primary">Aktivieren</button>
+        <a href="/settings" class="btn">Abbrechen</a>
+      </form>
+      <p class="small muted">Diesen Schlüssel niemandem zeigen. Wer ihn hat, kann Codes erzeugen.</p>
+    </div>
+  </div>
+</section>
+{% endblock %}

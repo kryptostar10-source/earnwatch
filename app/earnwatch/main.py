@@ -9,6 +9,7 @@ import datetime as dt
 import io
 import json
 import logging
+import math
 import time
 from pathlib import Path
 from urllib.parse import urlparse
@@ -22,8 +23,9 @@ from starlette.responses import PlainTextResponse, RedirectResponse, Response
 from starlette.routing import Mount, Route
 from starlette.staticfiles import StaticFiles
 from starlette.templating import Jinja2Templates
+from markupsafe import Markup
 
-from . import auth, charts, config, db, stats
+from . import auth, charts, config, db, stats, totp
 from .collectors import PLATFORMS
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -61,7 +63,7 @@ _last_manual = 0.0
 # Sicherheits-Header
 # --------------------------------------------------------------------------
 CSP = (
-    "default-src 'none'; style-src 'self'; img-src 'self' data:; font-src 'self'; script-src 'none'; "
+    "default-src 'none'; style-src 'self'; img-src 'self'; font-src 'self'; script-src 'none'; "
     "form-action 'self'; frame-ancestors 'none'; base-uri 'none'"
 )
 
@@ -191,7 +193,13 @@ async def collect_all() -> list:
                 db.add_run(pf, False, "Unerwarteter Fehler beim Abruf")
                 continue
             for res in (out if isinstance(out, list) else [out]):
-                rmeta = PLATFORMS[res.platform]
+                rmeta = PLATFORMS.get(res.platform)
+                if rmeta is None:
+                    continue
+                if res.ok and not (math.isfinite(res.balance) and -1e9 < res.balance < 1e9):
+                    res.balance, res.message = None, "Unplausibler Wert vom Anbieter verworfen"
+                if res.price_usd is not None and not (math.isfinite(res.price_usd) and 0 < res.price_usd < 1e6):
+                    res.price_usd = None
                 if res.ok:
                     db.add_snapshot(res.platform, res.balance, rmeta["unit"])
                     db.add_run(res.platform, True, None)
@@ -245,7 +253,8 @@ async def setup(request: Request):
         elif problem := auth.password_problems(pw):
             error = problem
         else:
-            db.create_user(username, await run_in_threadpool(auth.hash_password, pw))
+            if not db.create_first_user(username, await run_in_threadpool(auth.hash_password, pw)):
+                return redirect("/login")
             log.info("Admin-Konto '%s' angelegt", username)
             flash(request, "Konto angelegt – bitte anmelden.")
             return redirect("/login")
@@ -271,14 +280,142 @@ async def login(request: Request):
         stored = user["pw_hash"] if user else auth.DUMMY_HASH
         ok = await run_in_threadpool(auth.verify_password, pw, stored)
         if user and ok:
-            auth.throttle.success(ip)
             request.session.clear()  # neue Session (gegen Session-Fixation)
+            if db.totp_secret(user):
+                # Passwort stimmt – jetzt noch der zweite Faktor (max. 5 Minuten Zeit)
+                request.session.update({"pre_uid": user["id"], "pre_ver": user["session_ver"],
+                                        "pre_ts": int(time.time())})
+                return redirect("/login/2fa")
+            auth.throttle.success(ip)
             request.session.update({"uid": user["id"], "ver": user["session_ver"], "since": int(time.time())})
             log.info("Login '%s' von %s", user["username"], ip)
             return redirect("/")
         log.warning("Fehlgeschlagener Login von %s", ip)
         error, status = "Benutzername oder Passwort falsch.", 401
     return render(request, "login.html", {"error": error}, status)
+
+
+# --------------------------------------------------------------------------
+# Zwei-Faktor-Anmeldung
+# --------------------------------------------------------------------------
+def _pending_login_user(request: Request):
+    uid, ts = request.session.get("pre_uid"), request.session.get("pre_ts", 0)
+    if not uid or time.time() - ts > 300:
+        return None
+    user = db.get_user(uid)
+    if not user or user["session_ver"] != request.session.get("pre_ver") or not db.totp_secret(user):
+        return None
+    return user
+
+
+def _check_second_factor(user, code: str) -> bool:
+    """TOTP-Code oder Wiederherstellungscode prüfen (jeder nur einmal gültig)."""
+    secret = db.totp_secret(user)
+    if not secret:
+        return False
+    counter = totp.verify(secret, code, user["totp_last"])
+    if counter is not None:
+        return db.set_totp_last(user["id"], counter)  # atomar: parallele Wiederverwendung scheitert
+    raw = user["recovery"] or "[]"
+    rest = totp.use_recovery(code, db.recovery_hashes(user))
+    if rest is not None and db.set_recovery(user["id"], rest, expect_old=raw):
+        log.warning("Wiederherstellungscode benutzt für '%s' (%d übrig)", user["username"], len(rest))
+        return True
+    return False
+
+
+async def login_2fa(request: Request):
+    user = _pending_login_user(request)
+    if not user:
+        request.session.clear()
+        flash(request, "Bitte erneut anmelden.", "warn")
+        return redirect("/login")
+    error, status = None, 200
+    if request.method == "POST":
+        ip = client_ip(request)
+        form = await checked_form(request)
+        if form is None:
+            return forbidden()
+        wait = auth.throttle.try_acquire(ip) or auth.throttle.try_acquire(f"user2fa:{user['id']}", global_=False)
+        if wait:
+            return render(request, "login_2fa.html", {"error": f"Zu viele Fehlversuche. Bitte {wait//60+1} Min. warten."}, 429)
+        if _check_second_factor(user, form.get("code", "")):
+            auth.throttle.success(ip)
+            auth.throttle.success(f"user2fa:{user['id']}")
+            request.session.clear()
+            request.session.update({"uid": user["id"], "ver": user["session_ver"], "since": int(time.time())})
+            log.info("Login '%s' (2FA) von %s", user["username"], ip)
+            left = len(db.recovery_hashes(db.get_user(user["id"])))
+            if left <= 2:
+                flash(request, f"Nur noch {left} Wiederherstellungscode(s) übrig – in den Einstellungen neue erzeugen.", "warn")
+            return redirect("/")
+        log.warning("Falscher 2FA-Code von %s", ip)
+        error, status = "Code ungültig oder schon benutzt.", 401
+    return render(request, "login_2fa.html", {"error": error}, status)
+
+
+async def twofa_setup(request: Request):
+    user = current_user(request)
+    if not user:
+        return redirect("/login")
+    if db.totp_secret(user):
+        return redirect("/settings#2fa")
+    secret = db.totp_pending(user)
+    if not secret:
+        secret = totp.new_secret()
+        db.set_totp_pending(user["id"], secret)
+    error = None
+    if request.method == "POST":
+        form = await checked_form(request)
+        if form is None:
+            return forbidden()
+        if wait := auth.throttle.try_acquire(f"setup2fa:{user['id']}", global_=False):
+            error = f"Zu viele Versuche. Bitte {wait//60+1} Min. warten."
+        else:
+            counter = totp.verify(secret, form.get("code", ""), 0)
+            if counter is not None:
+                codes = totp.new_recovery_codes()
+                db.enable_totp(user["id"], secret, counter, [totp.hash_recovery(c) for c in codes])
+                fresh = db.get_user(user["id"])
+                request.session["ver"] = fresh["session_ver"]  # diese Sitzung bleibt, alle anderen fliegen raus
+                auth.throttle.success(f"setup2fa:{user['id']}")
+                log.info("2FA aktiviert für '%s'", user["username"])
+                return render(request, "twofa_codes.html", {"user": fresh, "codes": codes, "fresh": True})
+            error = "Der Code passt nicht. Uhrzeit am Handy prüfen und den aktuellen Code eingeben."
+    svg = totp.qr_svg(totp.otpauth_uri(secret, user["username"]))
+    return render(request, "twofa_setup.html", {
+        "user": user, "secret": " ".join(secret[i:i + 4] for i in range(0, len(secret), 4)),
+        "qr": Markup(svg) if svg else None, "error": error,
+    })
+
+
+async def twofa_manage(request: Request):
+    user = current_user(request)
+    if not user:
+        return redirect("/login")
+    form = await checked_form(request)
+    if form is None:
+        return forbidden()
+    action = request.path_params["action"]
+    if wait := auth.throttle.try_acquire(f"manage2fa:{user['id']}", global_=False):
+        flash(request, f"Zu viele Versuche. Bitte {wait//60+1} Min. warten.", "err")
+        return redirect("/settings#2fa")
+    pw_ok = await run_in_threadpool(auth.verify_password, form.get("password", ""), user["pw_hash"])
+    if not pw_ok or not _check_second_factor(user, form.get("code", "")):
+        flash(request, "Passwort oder 2FA-Code falsch.", "err")
+        return redirect("/settings#2fa")
+    auth.throttle.success(f"manage2fa:{user['id']}")
+    if action == "disable":
+        db.disable_totp(user["id"])
+        request.session["ver"] = db.get_user(user["id"])["session_ver"]
+        log.warning("2FA deaktiviert für '%s'", user["username"])
+        flash(request, "Zwei-Faktor-Anmeldung ausgeschaltet.", "warn")
+        return redirect("/settings#2fa")
+    if action == "recovery":
+        codes = totp.new_recovery_codes()
+        db.set_recovery(user["id"], [totp.hash_recovery(c) for c in codes])
+        return render(request, "twofa_codes.html", {"user": user, "codes": codes, "fresh": False})
+    return redirect("/settings#2fa")
 
 
 async def logout(request: Request):
@@ -359,6 +496,8 @@ async def settings_page(request: Request):
     conf = db.configured_platforms()
     return render(request, "settings.html", {
         "user": user,
+        "twofa": bool(db.totp_secret(user)),
+        "recovery_left": len(db.recovery_hashes(user)),
         "platforms": PLATFORMS,
         "configured": conf,
         "runs": db.last_runs(),
@@ -433,7 +572,9 @@ async def settings_save(request: Request):
             flash(request, "Intervall 15–1440 Minuten, Kurs z. B. 0,92.", "err")
     elif what == "password":
         old, new, new2 = form.get("old", ""), form.get("new", ""), form.get("new2", "")
-        if not await run_in_threadpool(auth.verify_password, old, user["pw_hash"]):
+        if wait := auth.throttle.try_acquire(f"pwchange:{user['id']}", global_=False):
+            flash(request, f"Zu viele Versuche. Bitte {wait//60+1} Min. warten.", "err")
+        elif not await run_in_threadpool(auth.verify_password, old, user["pw_hash"]):
             flash(request, "Altes Passwort ist falsch.", "err")
         elif new != new2:
             flash(request, "Die neuen Passwörter stimmen nicht überein.", "err")
@@ -481,6 +622,9 @@ routes = [
     Route("/setup", setup, methods=["GET", "POST"]),
     Route("/login", login, methods=["GET", "POST"]),
     Route("/logout", logout, methods=["POST"]),
+    Route("/login/2fa", login_2fa, methods=["GET", "POST"]),
+    Route("/2fa/setup", twofa_setup, methods=["GET", "POST"]),
+    Route("/2fa/{action:str}", twofa_manage, methods=["POST"]),
     Route("/collect", collect_now, methods=["POST"]),
     Route("/settings", settings_page),
     Route("/settings/{what:str}", settings_save, methods=["POST"]),

@@ -92,22 +92,26 @@ class LoginThrottle:
         with self._lock:
             self._ip.pop(ip, None)
 
-    def try_acquire(self, ip: str) -> int:
+    def try_acquire(self, ip: str, global_: bool = True) -> int:
         """Prüft die Sperre UND zählt den Versuch sofort (atomar).
 
         So können parallel abgeschickte Versuche die Grenze nicht umgehen.
         Gibt Wartesekunden zurück (0 = Versuch erlaubt)."""
         now = time.time()
         with self._lock:
+            if len(self._ip) > 5000:  # Speicher begrenzen: abgelaufene Einträge entfernen
+                for k in [k for k, d in self._ip.items() if not d or d[-1] < now - self.window]:
+                    del self._ip[k]
             dq = self._ip[ip]
             self._prune(dq, now)
             self._prune(self._all, now)
             if len(dq) >= self.per_ip:
                 return int(dq[0] + self.window - now) + 1
-            if len(self._all) >= self.global_max:
+            if global_ and len(self._all) >= self.global_max:
                 return int(self._all[0] + self.window - now) + 1
             dq.append(now)
-            self._all.append(now)
+            if global_:
+                self._all.append(now)
             return 0
 
 

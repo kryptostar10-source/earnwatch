@@ -51,6 +51,28 @@
   </form>
 </section>
 
+<section class="card setcard" id="2fa">
+  <header>
+    <h2>Zwei-Faktor-Anmeldung</h2>
+    {% if twofa %}<span class="pill ok">aktiv</span>{% else %}<span class="pill err">aus</span>{% endif %}
+  </header>
+  {% if not twofa %}
+    <p class="muted small">Beim Login wird zusätzlich ein Code aus deiner Authenticator-App abgefragt. Wer nur dein Passwort kennt, kommt dann nicht mehr rein.</p>
+    <a href="/2fa/setup" class="btn primary sm">Mit QR-Code einrichten</a>
+  {% else %}
+    <p class="muted small">Noch {{ recovery_left }} Wiederherstellungscode(s) übrig. Zum Ändern brauchst du Passwort <b>und</b> einen aktuellen Code.</p>
+    <form method="post" action="/2fa/recovery" autocomplete="off">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <label>Passwort<input name="password" type="password" required autocomplete="current-password"></label>
+      <label>Code aus der App<input name="code" inputmode="numeric" autocomplete="one-time-code" required maxlength="20"></label>
+      <div class="actions">
+        <button class="btn sm">Neue Wiederherstellungscodes</button>
+        <button class="btn danger sm" formaction="/2fa/disable">2FA ausschalten</button>
+      </div>
+    </form>
+  {% endif %}
+</section>
+
 <section class="card setcard">
   <header><h2>Passwort ändern</h2></header>
   <form method="post" action="/settings/password">

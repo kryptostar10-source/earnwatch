@@ -63,12 +63,28 @@ def init() -> None:
     with conn() as c:
         c.execute("PRAGMA journal_mode=WAL")
         c.executescript(SCHEMA)
+        cols = {r[1] for r in c.execute("PRAGMA table_info(users)")}
+        for col, typ in (("totp_secret", "BLOB"), ("totp_pending", "BLOB"),
+                         ("totp_last", "INTEGER NOT NULL DEFAULT 0"), ("recovery", "TEXT")):
+            if col not in cols:
+                c.execute(f"ALTER TABLE users ADD COLUMN {col} {typ}")  # feste Namen, keine Eingaben
 
 
 # --- Benutzer -------------------------------------------------------------
 def user_count() -> int:
     with conn() as c:
         return c.execute("SELECT COUNT(*) FROM users").fetchone()[0]
+
+
+def create_first_user(username: str, pw_hash: str) -> bool:
+    """Legt das Admin-Konto nur an, wenn es noch KEIN Konto gibt (atomar, gegen Wettläufe)."""
+    with conn() as c:
+        cur = c.execute(
+            "INSERT INTO users(username, pw_hash, created) "
+            "SELECT ?,?,? WHERE NOT EXISTS (SELECT 1 FROM users)",
+            (username, pw_hash, int(time.time())),
+        )
+        return cur.rowcount == 1
 
 
 def create_user(username: str, pw_hash: str) -> None:
@@ -94,6 +110,66 @@ def set_password(uid: int, pw_hash: str) -> None:
         c.execute(
             "UPDATE users SET pw_hash=?, session_ver=session_ver+1 WHERE id=?", (pw_hash, uid)
         )
+
+
+# --- Zwei-Faktor ----------------------------------------------------------
+def totp_secret(user) -> str | None:
+    if not user or not user["totp_secret"]:
+        return None
+    d = crypto.decrypt(user["totp_secret"])
+    return d.get("s") if d else None
+
+
+def set_totp_pending(uid: int, secret: str | None) -> None:
+    with conn() as c:
+        c.execute("UPDATE users SET totp_pending=? WHERE id=?",
+                  (crypto.encrypt({"s": secret}) if secret else None, uid))
+
+
+def totp_pending(user) -> str | None:
+    if not user or not user["totp_pending"]:
+        return None
+    d = crypto.decrypt(user["totp_pending"])
+    return d.get("s") if d else None
+
+
+def enable_totp(uid: int, secret: str, counter: int, recovery_hashes: list[str]) -> None:
+    import json
+    with conn() as c:
+        c.execute("UPDATE users SET totp_secret=?, totp_pending=NULL, totp_last=?, recovery=?, "
+                  "session_ver=session_ver+1 WHERE id=?",
+                  (crypto.encrypt({"s": secret}), counter, json.dumps(recovery_hashes), uid))
+
+
+def disable_totp(uid: int) -> None:
+    with conn() as c:
+        c.execute("UPDATE users SET totp_secret=NULL, totp_pending=NULL, totp_last=0, recovery=NULL, "
+                  "session_ver=session_ver+1 WHERE id=?", (uid,))
+
+
+def set_totp_last(uid: int, counter: int) -> bool:
+    """Speichert den zuletzt benutzten Zeitschritt – atomar, nur wenn er neuer ist."""
+    with conn() as c:
+        cur = c.execute("UPDATE users SET totp_last=? WHERE id=? AND totp_last<?", (counter, uid, counter))
+        return cur.rowcount == 1
+
+
+def recovery_hashes(user) -> list[str]:
+    import json
+    try:
+        return json.loads(user["recovery"] or "[]")
+    except ValueError:
+        return []
+
+
+def set_recovery(uid: int, hashes: list[str], expect_old: str | None = None) -> bool:
+    import json
+    with conn() as c:
+        if expect_old is None:
+            cur = c.execute("UPDATE users SET recovery=? WHERE id=?", (json.dumps(hashes), uid))
+        else:  # nur ersetzen, wenn sich die Liste nicht zwischendurch geändert hat
+            cur = c.execute("UPDATE users SET recovery=? WHERE id=? AND recovery=?", (json.dumps(hashes), uid, expect_old))
+        return cur.rowcount == 1
 
 
 def bump_session(uid: int) -> None:
