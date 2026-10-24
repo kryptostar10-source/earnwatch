@@ -9,6 +9,10 @@ import threading
 import time
 from collections import defaultdict, deque
 
+# Höchstens 2 Passwort-Prüfungen gleichzeitig (jede braucht ~32 MB RAM).
+# Verhindert, dass eine Flut von Login-Versuchen den Container zum Absturz bringt.
+_HASH_SLOTS = threading.BoundedSemaphore(2)
+
 # scrypt: N=2^15, r=8, p=1  -> ~32 MB RAM pro Versuch, bremst Brute-Force stark
 _N, _R, _P = 2**15, 8, 1
 _MAXMEM = 64 * 1024 * 1024
@@ -16,7 +20,8 @@ _MAXMEM = 64 * 1024 * 1024
 
 def hash_password(password: str) -> str:
     salt = secrets.token_bytes(16)
-    dk = hashlib.scrypt(password.encode(), salt=salt, n=_N, r=_R, p=_P, maxmem=_MAXMEM, dklen=32)
+    with _HASH_SLOTS:
+        dk = hashlib.scrypt(password.encode(), salt=salt, n=_N, r=_R, p=_P, maxmem=_MAXMEM, dklen=32)
     b = lambda x: base64.b64encode(x).decode()
     return f"scrypt${_N}${_R}${_P}${b(salt)}${b(dk)}"
 
@@ -26,7 +31,10 @@ def verify_password(password: str, stored: str) -> bool:
         algo, n, r, p, salt, dk = stored.split("$")
         if algo != "scrypt":
             return False
-        calc = hashlib.scrypt(
+        if len(password) > 256:
+            return False
+        with _HASH_SLOTS:
+            calc = hashlib.scrypt(
             password.encode(),
             salt=base64.b64decode(salt),
             n=int(n), r=int(r), p=int(p), maxmem=_MAXMEM, dklen=32,
@@ -83,6 +91,24 @@ class LoginThrottle:
     def success(self, ip: str) -> None:
         with self._lock:
             self._ip.pop(ip, None)
+
+    def try_acquire(self, ip: str) -> int:
+        """Prüft die Sperre UND zählt den Versuch sofort (atomar).
+
+        So können parallel abgeschickte Versuche die Grenze nicht umgehen.
+        Gibt Wartesekunden zurück (0 = Versuch erlaubt)."""
+        now = time.time()
+        with self._lock:
+            dq = self._ip[ip]
+            self._prune(dq, now)
+            self._prune(self._all, now)
+            if len(dq) >= self.per_ip:
+                return int(dq[0] + self.window - now) + 1
+            if len(self._all) >= self.global_max:
+                return int(self._all[0] + self.window - now) + 1
+            dq.append(now)
+            self._all.append(now)
+            return 0
 
 
 throttle = LoginThrottle()

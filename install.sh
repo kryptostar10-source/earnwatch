@@ -2,6 +2,7 @@
 # EarnWatch Installer – fragt die Netzwerkdaten ab, schreibt die .env und startet EarnWatch.
 # Aufruf im geklonten Ordner:  bash install.sh
 set -euo pipefail
+umask 077   # .env mit Passwörtern nur für root lesbar
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 say(){ printf '\n\033[1;32m==> %s\033[0m\n' "$*"; }
 die(){ printf '\n\033[1;31mFehler: %s\033[0m\n' "$*"; exit 1; }

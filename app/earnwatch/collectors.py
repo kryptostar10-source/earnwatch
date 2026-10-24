@@ -42,8 +42,28 @@ class CollectError(Exception):
     pass
 
 
+class _SafeRedirect(urllib.request.HTTPRedirectHandler):
+    """Folgt Weiterleitungen nur per HTTPS und nur auf denselben Server.
+
+    Standardmäßig würde Python den Authorization-Header (Login-Token) bei einer
+    Weiterleitung an JEDE Adresse mitschicken – auch über unverschlüsseltes HTTP.
+    """
+    max_redirections = 5
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        old, new = urllib.parse.urlparse(req.full_url), urllib.parse.urlparse(newurl)
+        if new.scheme != "https" or new.hostname != old.hostname:
+            raise urllib.error.HTTPError(req.full_url, code, "Weiterleitung auf fremden Server blockiert", headers, fp)
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
+class _NoPlainHTTP(urllib.request.BaseHandler):
+    def http_open(self, req):  # niemals unverschlüsselt
+        raise urllib.error.URLError("HTTP ohne TLS ist gesperrt")
+
+
 def _opener(jar: http.cookiejar.CookieJar | None = None):
-    handlers = [urllib.request.HTTPSHandler(context=_SSL)]
+    handlers = [urllib.request.HTTPSHandler(context=_SSL), _SafeRedirect(), _NoPlainHTTP()]
     if jar is not None:
         handlers.append(urllib.request.HTTPCookieProcessor(jar))
     return urllib.request.build_opener(*handlers)

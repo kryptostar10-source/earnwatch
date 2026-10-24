@@ -96,6 +96,11 @@ def set_password(uid: int, pw_hash: str) -> None:
         )
 
 
+def bump_session(uid: int) -> None:
+    with conn() as c:
+        c.execute("UPDATE users SET session_ver=session_ver+1 WHERE id=?", (uid,))
+
+
 # --- Zugangsdaten (immer verschlüsselt) -----------------------------------
 def save_credentials(platform: str, data: dict) -> None:
     with conn() as c:

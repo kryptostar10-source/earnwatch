@@ -56,6 +56,24 @@ class SecurityHeaders:
         if scope["type"] != "http":
             return await self.app(scope, receive, send)
 
+        # Anfragen größer als 64 KB gar nicht erst annehmen
+        for k, v in scope.get("headers", []):
+            if k == b"content-length" and (not v.isdigit() or int(v) > 65536):
+                await send({"type": "http.response.start", "status": 413,
+                            "headers": [(b"content-type", b"text/plain; charset=utf-8")]})
+                await send({"type": "http.response.body", "body": "Anfrage zu groß".encode()})
+                return
+        received = 0
+
+        async def _receive():
+            nonlocal received
+            msg = await receive()
+            if msg["type"] == "http.request":
+                received += len(msg.get("body", b""))
+                if received > 65536:
+                    raise RuntimeError("Anfrage zu groß")
+            return msg
+
         async def _send(msg):
             if msg["type"] == "http.response.start":
                 h = msg.setdefault("headers", [])
@@ -71,7 +89,7 @@ class SecurityHeaders:
                     h.append((k.encode(), v.encode()))
             await send(msg)
 
-        await self.app(scope, receive, _send)
+        await self.app(scope, _receive, _send)
 
 
 # --------------------------------------------------------------------------
@@ -183,16 +201,15 @@ async def setup(request: Request):
     error = None
     if request.method == "POST":
         ip = client_ip(request)
-        if wait := auth.throttle.blocked(ip):
-            return render(request, "setup.html", {"error": f"Zu viele Versuche. Bitte {wait//60+1} Min. warten."}, 429)
         form = await checked_form(request)
         if form is None:
             return forbidden()
+        if wait := auth.throttle.try_acquire(ip):
+            return render(request, "setup.html", {"error": f"Zu viele Versuche. Bitte {wait//60+1} Min. warten."}, 429)
         token = form.get("token", "")
         username = form.get("username", "").strip()
         pw, pw2 = form.get("password", ""), form.get("password2", "")
         if not hmac.compare_digest(token.encode(), config.setup_token().encode()):
-            auth.throttle.fail(ip)
             error = "Einrichtungs-Token ist falsch."
         elif not (3 <= len(username) <= 32 and username.isalnum()):
             error = "Benutzername: 3–32 Buchstaben/Ziffern."
@@ -217,11 +234,11 @@ async def login(request: Request):
     status = 200
     if request.method == "POST":
         ip = client_ip(request)
-        if wait := auth.throttle.blocked(ip):
-            return render(request, "login.html", {"error": f"Zu viele Fehlversuche. Bitte {wait//60+1} Min. warten."}, 429)
         form = await checked_form(request)
         if form is None:
             return forbidden()
+        if wait := auth.throttle.try_acquire(ip):
+            return render(request, "login.html", {"error": f"Zu viele Fehlversuche. Bitte {wait//60+1} Min. warten."}, 429)
         user = db.get_user_by_name(form.get("username", "").strip())
         pw = form.get("password", "")
         stored = user["pw_hash"] if user else auth.DUMMY_HASH
@@ -232,7 +249,6 @@ async def login(request: Request):
             request.session.update({"uid": user["id"], "ver": user["session_ver"], "since": int(time.time())})
             log.info("Login '%s' von %s", user["username"], ip)
             return redirect("/")
-        auth.throttle.fail(ip)
         log.warning("Fehlgeschlagener Login von %s", ip)
         error, status = "Benutzername oder Passwort falsch.", 401
     return render(request, "login.html", {"error": error}, status)
@@ -242,6 +258,9 @@ async def logout(request: Request):
     form = await checked_form(request)
     if form is None:
         return forbidden()
+    user = current_user(request)
+    if user:
+        db.bump_session(user["id"])  # alle Sitzungs-Cookies sofort ungültig (auch gestohlene)
     request.session.clear()
     return redirect("/login")
 

@@ -16,7 +16,18 @@ https://{$EW_IP} {
 	@outside not remote_ip private_ranges
 	abort @outside
 
-	header -Server
+	header {
+		-Server
+		X-Robots-Tag "noindex, nofollow"
+	}
 
-	reverse_proxy earnwatch:8080
+	# Große Anfragen schon am Eingang abweisen
+	request_body {
+		max_size 64KB
+	}
+
+	reverse_proxy earnwatch:8080 {
+		# echte Client-IP erzwingen (gefälschte X-Forwarded-For-Header werden überschrieben)
+		header_up X-Forwarded-For {remote_host}
+	}
 }
