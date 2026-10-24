@@ -91,7 +91,14 @@ services:
     image: honeygain/honeygain:latest
     container_name: honeygain
     restart: unless-stopped
-    command: -tou-accept -email ${HG_EMAIL} -pass ${HG_PASSWORD} -device ${HG_DEVICE:-proxmox}
+    command:
+      - "-tou-accept"
+      - "-email"
+      - "${HG_EMAIL}"
+      - "-pass"
+      - "${HG_PASSWORD}"
+      - "-device"
+      - "${HG_DEVICE:-proxmox}"
     networks: [earners]
     security_opt:
       - no-new-privileges:true
@@ -119,7 +126,13 @@ services:
     image: iproyal/pawns-cli:latest
     container_name: pawns
     restart: unless-stopped
-    command: -email=${PAWNS_EMAIL} -password=${PAWNS_PASSWORD} -device-name=${PAWNS_DEVICE:-proxmox} -device-id=${PAWNS_DEVICE:-proxmox} -accept-tos
+    # Listen-Form: jedes Argument wird 1:1 übergeben – Sonderzeichen im Passwort bleiben erhalten
+    command:
+      - "-email=${PAWNS_EMAIL}"
+      - "-password=${PAWNS_PASSWORD}"
+      - "-device-name=${PAWNS_DEVICE:-proxmox}"
+      - "-device-id=${PAWNS_DEVICE:-proxmox}"
+      - "-accept-tos"
     networks: [earners]
     security_opt:
       - no-new-privileges:true
