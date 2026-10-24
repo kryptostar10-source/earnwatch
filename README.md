@@ -123,6 +123,22 @@ docker compose logs -f earnwatch          # Log ansehen (enthält nie Passwörte
 docker compose pull && docker compose up -d --build   # aktualisieren
 ```
 
+## Von unterwegs: nur EarnWatch über Tailscale
+
+EarnWatch kann einen eigenen kleinen Tailscale-Container mitstarten. Dann ist **ausschließlich diese Seite**
+in deinem Tailscale-Netz erreichbar – unter `https://earnwatch.<dein-tailnet>.ts.net` mit echtem Zertifikat.
+Dein restliches Heimnetz bleibt unsichtbar, im Router muss nichts freigegeben werden, und aus dem Internet
+ist die Seite weiterhin nicht erreichbar (Tailscale „Funnel“ ist ausdrücklich aus).
+
+1. Kostenloses Konto auf https://login.tailscale.com anlegen
+2. Unter https://login.tailscale.com/admin/dns **MagicDNS** und **HTTPS Certificates** einschalten
+3. Unter https://login.tailscale.com/admin/settings/keys einen **Auth-Key** erzeugen (nicht wiederverwendbar)
+4. `sudo bash install.sh` ausführen, bei „Fernzugriff über Tailscale“ `j` wählen und den Key einfügen
+5. Tailscale-App aufs Handy, mit demselben Konto anmelden – fertig. Die Adresse zeigt `install.sh` am Ende an.
+
+Tipps: In der Tailscale-Verwaltung beim Gerät „earnwatch“ **Key expiry deaktivieren**, sonst musst du es
+nach 180 Tagen neu anmelden. Nur deine eigenen Geräte ins Tailnet aufnehmen. Und 2FA in EarnWatch einschalten.
+
 **LAN-Sperre für die Earn-Apps:** Honeygain, EarnApp, Pawns und Earn.fm leiten fremden Internetverkehr
 über deinen Anschluss. `install.sh` richtet auf Wunsch eine Firewall-Regel ein (`lan-guard.sh`, als
 systemd-Dienst `earnwatch-lan-guard`), die diesen Containern den Zugriff auf dein Heimnetz verbietet –

@@ -159,7 +159,10 @@ async def checked_form(request: Request):
     """Formular lesen + CSRF-Token und Origin prüfen. Gibt None bei Angriff zurück."""
     origin = request.headers.get("origin")
     if origin and origin != "null":
-        if urlparse(origin).netloc != request.headers.get("host"):
+        # Hinter einem Proxy (Caddy, Tailscale) steht der echte Name ggf. in X-Forwarded-Host.
+        # Ein Angreifer-Formular kann keine eigenen Header setzen – das bleibt sicher.
+        hosts = {request.headers.get("host"), request.headers.get("x-forwarded-host")}
+        if urlparse(origin).netloc not in hosts:
             return None
     form = await request.form(max_files=0, max_fields=20, max_part_size=8192)
     if not auth.csrf_ok(request.session, form.get("csrf")):

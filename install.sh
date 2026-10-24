@@ -50,6 +50,22 @@ setenv(){ # setenv NAME WERT  -> sicher in .env schreiben (ohne sed, Sonderzeich
 PROFILES=$(grep -E '^COMPOSE_PROFILES=' .env | cut -d= -f2- | tr -d "'\"" || true)
 add_profile(){ case ",$PROFILES," in *",$1,"*) ;; *) PROFILES="${PROFILES:+$PROFILES,}$1";; esac; }
 
+say "Fernzugriff (optional)"
+echo "  Mit Tailscale erreichst du NUR die EarnWatch-Seite auch von unterwegs –"
+echo "  ohne Portfreigabe und ohne dein restliches Heimnetz freizugeben."
+read -rp "  Fernzugriff über Tailscale einrichten? [j/N] " ts
+if [[ "${ts,,}" == j* ]]; then
+  if ! grep -q "^TS_AUTHKEY=.\+" .env; then
+    echo "    1. Kostenloses Konto: https://login.tailscale.com"
+    echo "    2. DNS-Seite: https://login.tailscale.com/admin/dns -> 'MagicDNS' und 'HTTPS Certificates' einschalten"
+    echo "    3. Schlüssel: https://login.tailscale.com/admin/settings/keys -> 'Generate auth key' (nicht wiederverwendbar)"
+    read -rsp "    Auth-Key (tskey-auth-...): " v; echo
+    [[ "$v" == tskey-* ]] || echo "    Hinweis: Das sieht nicht wie ein Tailscale-Key aus – trotzdem gespeichert."
+    setenv TS_AUTHKEY "$v"
+  fi
+  add_profile tailscale
+fi
+
 read -rp "Earn-Apps als Container auf diesem Server mitlaufen lassen? [j/N] " earn
 if [[ "${earn,,}" == j* ]]; then
   read -rp "  Honeygain starten? [j/N] " a
@@ -72,10 +88,10 @@ if [[ "${earn,,}" == j* ]]; then
     grep -q "^EARNFM_TOKEN=.\+" .env || { echo "    API-Key: app.earn.fm -> Profil -> Account Settings"; read -rsp "    Earn.fm API-Key: " v; echo; setenv EARNFM_TOKEN "$v"; }
     add_profile earnfm
   fi
-  setenv COMPOSE_PROFILES "$PROFILES"
 fi
+setenv COMPOSE_PROFILES "$PROFILES"
 
-if [ -n "$(grep -E "^COMPOSE_PROFILES=.+" .env | grep -v "=''$" || true)" ]; then
+if [[ ",$PROFILES," =~ ,(honeygain|earnapp|pawns|earnfm), ]]; then
   say "LAN-Sperre für die Earn-Apps"
   echo "  Die Earn-Apps leiten fremden Internetverkehr über deinen Anschluss."
   echo "  Die Sperre verhindert, dass sie Geräte in deinem Heimnetz erreichen (Router, Proxmox, NAS)."
@@ -117,4 +133,18 @@ echo "  Einrichtungs-Token:   $EW_SETUP_TOKEN"
 echo "  (steht auch in $DIR/.env)"
 case ",${COMPOSE_PROFILES:-}," in *,earnapp,*) echo "  EarnApp-Gerät verknüpfen: https://earnapp.com/r/$EARNAPP_UUID";; esac
 echo "  Wipter: Kontostand trägst du direkt auf der Übersicht ein."
+case ",${COMPOSE_PROFILES:-}," in *,tailscale,*)
+  echo "  Tailscale verbindet sich ..."
+  TSNAME=""
+  for _ in $(seq 1 20); do
+    TSNAME=$(docker compose exec -T tailscale tailscale status --json 2>/dev/null | grep -m1 '"DNSName"' | sed -E 's/.*"DNSName": *"([^"]*)\.?".*/\1/; s/\.$//')
+    [ -n "$TSNAME" ] && break; sleep 3
+  done
+  if [ -n "$TSNAME" ]; then
+    echo "  Von unterwegs (Tailscale-App an):  https://$TSNAME"
+  else
+    echo "  Tailscale-Adresse noch nicht bereit – später prüfen mit:"
+    echo "    sudo docker compose -f $DIR/docker-compose.yml logs tailscale"
+  fi;;
+esac
 echo "  Hinweis: Vom Server selbst ist die IP nicht erreichbar – das ist normal."
