@@ -18,6 +18,9 @@ services=() events=()
 while read -r s; do
   [[ "$s" =~ ^[a-z0-9_-]{1,40}$ ]] || continue
   case "$IGNORE" in *",$s,"*) continue;; esac
+  # Von zugangsdaten.sh vorübergehend pausiert (z. B. Login-Sperre beim Anbieter)?
+  if [ -f "$STATE_DIR/$s.pause" ] && [ "$(cat "$STATE_DIR/$s.pause" 2>/dev/null || echo 0)" -gt "$(date +%s)" ] 2>/dev/null; then continue; fi
+  rm -f "$STATE_DIR/$s.pause"
   cid=$(docker compose ps -a -q "$s" 2>/dev/null | head -1)
   if [ -z "$cid" ]; then state=missing; restarts=0; health=""
   else
@@ -28,7 +31,10 @@ while read -r s; do
   prev_restarts=$(cat "$STATE_DIR/$s.restarts" 2>/dev/null || echo "$restarts")
   prev_state=$(cat "$STATE_DIR/$s.state" 2>/dev/null || echo running)
   action=""
-  if [ "$state" != "running" ] || [ "$health" = "unhealthy" ]; then
+  if [ "$state" = "restarting" ]; then
+    # Docker startet ihn schon selbst immer wieder neu (Absturz-Schleife) -> nur EINMAL melden
+    [ "$prev_state" = "restarting" ] || events+=("{\"name\":\"$s\",\"kind\":\"down\",\"detail\":\"restarting\",\"action\":\"loop\"}")
+  elif [ "$state" != "running" ] || [ "$health" = "unhealthy" ]; then
     if [ "$health" = "unhealthy" ]; then docker restart "$cid" >/dev/null 2>&1 && action=restarted
     else docker compose up -d "$s" >/dev/null 2>&1 && action=started; fi
     events+=("{\"name\":\"$s\",\"kind\":\"down\",\"detail\":\"$(json_escape "$state${health:+/$health}")\",\"action\":\"$action\"}")
@@ -37,7 +43,7 @@ while read -r s; do
   elif [ "$prev_state" != "running" ]; then
     events+=("{\"name\":\"$s\",\"kind\":\"recovered\",\"detail\":\"\",\"action\":\"\"}")
   fi
-  if [ "$restarts" -gt "$prev_restarts" ] 2>/dev/null; then
+  if [ "$state" != "restarting" ] && [ "$restarts" -gt "$prev_restarts" ] 2>/dev/null; then
     events+=("{\"name\":\"$s\",\"kind\":\"crashed\",\"detail\":\"$((restarts - prev_restarts))\",\"action\":\"\"}")
   fi
   echo "$restarts" > "$STATE_DIR/$s.restarts"; echo "$state" > "$STATE_DIR/$s.state"

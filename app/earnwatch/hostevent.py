@@ -44,6 +44,11 @@ def handle(raw: str) -> int:
         detail = str(e.get("detail", ""))[:40]
         if kind == "down":
             st = detail.split("/")[0]
+            if e.get("action") == "loop":
+                notify.send("container", f"🐳 {label} startet ständig neu",
+                            f"Meist ist das Passwort falsch oder der Anbieter sperrt kurz.\nLog: sudo docker logs --tail 20 {name}\n"
+                            f"Neu eintragen: sudo bash /opt/earnwatch/zugangsdaten.sh {name}", priority=4, tags=["whale"], wait=True)
+                continue
             how = "wurde automatisch neu gestartet ✅" if e.get("action") in ("started", "restarted") else "konnte NICHT neu gestartet werden ❌"
             notify.send("container", f"🐳 {label} war {STATE_DE.get(st, 'nicht erreichbar' if 'unhealthy' in detail else st)}",
                         f"Der Container {how}", priority=4, tags=["whale"], wait=True)

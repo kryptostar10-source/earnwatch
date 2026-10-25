@@ -147,6 +147,18 @@ Gespeichert werden dabei nur Zahlen – keine Gerätenamen oder IP-Adressen.
 „Jetzt abrufen“ läuft im Hintergrund: Die Seite lädt sich alle paar Sekunden selbst neu, bis alle Anbieter
 geantwortet haben, und zeigt dann das Ergebnis.
 
+## Zugangsdaten der Earn-Apps ändern
+
+Steht bei Honeygain/Pawns/Earn.fm „Restarting“ (Log z. B. `not_valid_login_credentials`), sind E-Mail oder Passwort in
+der `.env` falsch. Neu eintragen und Container neu starten:
+
+```bash
+sudo bash /opt/earnwatch/zugangsdaten.sh          # fragt, welche App
+```
+
+Hat der Anbieter wegen zu vieler Versuche gesperrt („too many tries“), mit **j** antworten – dann startet die App
+erst nach 60 Minuten mit den neuen Daten (der Container-Wächter wartet so lange).
+
 ## Extras
 
 - **Kalender-Heatmap** („Dein Jahr“) auf der Übersicht und jeder Plattform-Seite, mit Serie und Rekord.
