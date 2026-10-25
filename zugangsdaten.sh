@@ -19,18 +19,44 @@ if [ -z "$APP" ]; then
   read -rp "Nummer: " n
   case "$n" in 1) APP=honeygain;; 2) APP=pawns;; 3) APP=earnfm;; *) echo "Abbruch"; exit 1;; esac
 fi
+json_str(){ # sicher als JSON-Text verpacken (ohne externe Programme)
+  local s=${1//\\/\\\\}; s=${s//\"/\\\"}; s=${s//$'\t'/\\t}; s=${s//$'\n'/\\n}; s=${s//$'\r'/\\r}; printf '"%s"' "$s"
+}
+test_login(){ # test_login honeygain|pawns EMAIL PASSWORT -> fragt den Anbieter direkt, ob die Daten stimmen
+  printf '{"email":%s,"password":%s}' "$(json_str "$2")" "$(json_str "$3")" \
+    | docker compose exec -T earnwatch python -m earnwatch.credtool "test-$1" 2>/dev/null || echo "TEST NICHT MÖGLICH"
+}
+ask_login(){ # ask_login honeygain|pawns VAR_EMAIL VAR_PASS
+  local e="" p="" r=""
+  if [ "$(docker compose ps -q earnwatch 2>/dev/null)" ] && \
+     docker compose exec -T earnwatch python -m earnwatch.credtool export "$1" >/dev/null 2>&1; then
+    read -rp "In den EarnWatch-Einstellungen ist ein $1-Login gespeichert. Den übernehmen? [J/n] " u
+    if [[ "${u,,}" != n* ]]; then
+      { IFS= read -r -d '' e; IFS= read -r -d '' p; } < <(docker compose exec -T earnwatch python -m earnwatch.credtool export "$1")
+    fi
+  fi
+  if [ -z "$e" ]; then read -rp "$1 E-Mail: " e; read -rsp "$1 Passwort: " p; echo; fi
+  [ -n "$e" ] && [ -n "$p" ] || { echo "Leer – Abbruch"; exit 1; }
+  echo "Prüfe die Daten direkt beim Anbieter …"
+  r=$(test_login "$1" "$e" "$p")
+  case "$r" in
+    OK) echo "✓ Login stimmt." ;;
+    GESPERRT*) echo "⚠ $r" ;;
+    FALSCH*) echo "✗ Der Anbieter sagt: E-Mail oder Passwort FALSCH."
+             echo "  Bei Google/Apple-Login gibt es kein Passwort – erst eins setzen (siehe Tipp oben)."
+             read -rp "Trotzdem speichern? [j/N] " f; [[ "${f,,}" == j* ]] || exit 1 ;;
+    *) echo "  (Konnte nicht prüfen: $r)" ;;
+  esac
+  setenv "$2" "$e"; setenv "$3" "$p"
+}
 case "$APP" in
   honeygain)
     echo "Tipp: Hast du dich bei Honeygain mit Google/Apple angemeldet? Dann zuerst auf"
-    echo "      dashboard.honeygain.com -> 'Passwort vergessen' ein eigenes Passwort setzen."
-    read -rp "Honeygain E-Mail: " e; read -rsp "Honeygain Passwort: " p; echo
-    [ -n "$e" ] && [ -n "$p" ] || { echo "Leer – Abbruch"; exit 1; }
-    setenv HG_EMAIL "$e"; setenv HG_PASSWORD "$p" ;;
+    echo "      dashboard.honeygain.com abmelden -> 'Passwort vergessen' -> eigenes Passwort setzen."
+    ask_login honeygain HG_EMAIL HG_PASSWORD ;;
   pawns)
     echo "Tipp: Bei Google-Login auf dashboard.pawns.app -> Einstellungen ein eigenes Passwort setzen."
-    read -rp "Pawns E-Mail: " e; read -rsp "Pawns Passwort: " p; echo
-    [ -n "$e" ] && [ -n "$p" ] || { echo "Leer – Abbruch"; exit 1; }
-    setenv PAWNS_EMAIL "$e"; setenv PAWNS_PASSWORD "$p" ;;
+    ask_login pawns PAWNS_EMAIL PAWNS_PASSWORD ;;
   earnfm)
     read -rp "Earn.fm API-Token (app.earn.fm -> Einstellungen): " t
     [ -n "$t" ] || { echo "Leer – Abbruch"; exit 1; }
