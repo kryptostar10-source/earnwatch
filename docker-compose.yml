@@ -106,6 +106,8 @@ services:
       - "-device"
       - "${HG_DEVICE:-proxmox}"
     networks: [earners]
+    # Öffentliche DNS-Server: die LAN-Sperre blockt den Router – sonst finden die Apps keine Server
+    dns: [1.1.1.1, 9.9.9.9]
     security_opt:
       - no-new-privileges:true
     mem_limit: 256m
@@ -122,6 +124,8 @@ services:
     volumes:
       - earnapp_data:/etc/earnapp
     networks: [earners]
+    # Öffentliche DNS-Server: die LAN-Sperre blockt den Router – sonst finden die Apps keine Server
+    dns: [1.1.1.1, 9.9.9.9]
     security_opt:
       - no-new-privileges:true
     mem_limit: 256m
@@ -140,6 +144,8 @@ services:
       - "-device-id=${PAWNS_DEVICE:-proxmox}"
       - "-accept-tos"
     networks: [earners]
+    # Öffentliche DNS-Server: die LAN-Sperre blockt den Router – sonst finden die Apps keine Server
+    dns: [1.1.1.1, 9.9.9.9]
     security_opt:
       - no-new-privileges:true
     mem_limit: 128m
@@ -153,6 +159,8 @@ services:
     environment:
       EARNFM_TOKEN: ${EARNFM_TOKEN}
     networks: [earners]
+    # Öffentliche DNS-Server: die LAN-Sperre blockt den Router – sonst finden die Apps keine Server
+    dns: [1.1.1.1, 9.9.9.9]
     security_opt:
       - no-new-privileges:true
     mem_limit: 128m
