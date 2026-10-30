@@ -47,6 +47,10 @@ setenv(){ # setenv NAME WERT  -> sicher in .env schreiben (ohne sed, Sonderzeich
   else v=${2//\\/\\\\}; v=${v//\"/\\\"}; v=${v//\$/\$\$}; printf '%s="%s"\n' "$1" "$v" >> .env.tmp; fi
   mv .env.tmp .env; chmod 600 .env
 }
+hasval(){ # hasval NAME -> wahr, wenn in .env ein NICHT-leerer Wert steht ('' oder "" zählt als leer)
+  local v; v=$(grep -E "^$1=" .env | tail -1 | cut -d= -f2-)
+  v=${v#\'}; v=${v%\'}; v=${v#\"}; v=${v%\"}; [ -n "$v" ]
+}
 PROFILES=$(grep -E '^COMPOSE_PROFILES=' .env | cut -d= -f2- | tr -d "'\"" || true)
 add_profile(){ case ",$PROFILES," in *",$1,"*) ;; *) PROFILES="${PROFILES:+$PROFILES,}$1";; esac; }
 
@@ -55,7 +59,12 @@ echo "  Mit Tailscale erreichst du NUR die EarnWatch-Seite auch von unterwegs �
 echo "  ohne Portfreigabe und ohne dein restliches Heimnetz freizugeben."
 read -rp "  Fernzugriff über Tailscale einrichten? [j/N] " ts
 if [[ "${ts,,}" == j* ]]; then
-  if ! grep -q "^TS_AUTHKEY=.\+" .env; then
+  TS_OK=""
+  # Schon angemeldet? Dann braucht es keinen neuen Schlüssel.
+  docker compose exec -T tailscale tailscale status --json 2>/dev/null | grep -q '"BackendState": *"Running"' && TS_OK=1
+  if [ -n "$TS_OK" ]; then
+    echo "    ✓ Tailscale ist bereits angemeldet."
+  elif ! hasval TS_AUTHKEY; then
     echo "    1. Kostenloses Konto: https://login.tailscale.com"
     echo "    2. DNS-Seite: https://login.tailscale.com/admin/dns -> 'MagicDNS' und 'HTTPS Certificates' einschalten"
     echo "    3. Schlüssel: https://login.tailscale.com/admin/settings/keys -> 'Generate auth key' (nicht wiederverwendbar)"
@@ -70,22 +79,22 @@ read -rp "Earn-Apps als Container auf diesem Server mitlaufen lassen? [j/N] " ea
 if [[ "${earn,,}" == j* ]]; then
   read -rp "  Honeygain starten? [j/N] " a
   if [[ "${a,,}" == j* ]]; then
-    grep -q "^HG_EMAIL=.\+" .env || { read -rp "    Honeygain E-Mail: " v; setenv HG_EMAIL "$v"; read -rsp "    Honeygain Passwort: " v; echo; setenv HG_PASSWORD "$v"; }
+    hasval HG_EMAIL || { read -rp "    Honeygain E-Mail: " v; setenv HG_EMAIL "$v"; read -rsp "    Honeygain Passwort: " v; echo; setenv HG_PASSWORD "$v"; }
     add_profile honeygain
   fi
   read -rp "  EarnApp starten? [j/N] " a
   if [[ "${a,,}" == j* ]]; then
-    grep -q "^EARNAPP_UUID=.\+" .env || setenv EARNAPP_UUID "sdk-node-$(head -c 16 /dev/urandom | od -An -tx1 | tr -d ' \n')"
+    hasval EARNAPP_UUID || setenv EARNAPP_UUID "sdk-node-$(head -c 16 /dev/urandom | od -An -tx1 | tr -d ' \n')"
     add_profile earnapp
   fi
   read -rp "  Pawns.app starten? [j/N] " a
   if [[ "${a,,}" == j* ]]; then
-    grep -q "^PAWNS_EMAIL=.\+" .env || { read -rp "    Pawns E-Mail: " v; setenv PAWNS_EMAIL "$v"; read -rsp "    Pawns Passwort: " v; echo; setenv PAWNS_PASSWORD "$v"; }
+    hasval PAWNS_EMAIL || { read -rp "    Pawns E-Mail: " v; setenv PAWNS_EMAIL "$v"; read -rsp "    Pawns Passwort: " v; echo; setenv PAWNS_PASSWORD "$v"; }
     add_profile pawns
   fi
   read -rp "  Earn.fm starten? [j/N] " a
   if [[ "${a,,}" == j* ]]; then
-    grep -q "^EARNFM_TOKEN=.\+" .env || { echo "    API-Key: app.earn.fm -> Profil -> Account Settings"; read -rsp "    Earn.fm API-Key: " v; echo; setenv EARNFM_TOKEN "$v"; }
+    hasval EARNFM_TOKEN || { echo "    API-Key: app.earn.fm -> Profil -> Account Settings"; read -rsp "    Earn.fm API-Key: " v; echo; setenv EARNFM_TOKEN "$v"; }
     add_profile earnfm
   fi
 fi
