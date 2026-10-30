@@ -164,6 +164,7 @@ def render(request: Request, name: str, ctx: dict | None = None, status: int = 2
     ctx.setdefault("user", None)
     ctx["flash"] = request.session.pop("flash", None)
     ctx["theme"] = db.get_setting("theme", "auto") if db.user_count() else "auto"
+    ctx["ui_style"] = db.get_setting("ui_style", "glass") if db.user_count() else "glass"
     if ctx["user"] and name in ("dashboard.html", "platform.html"):
         running = _collect_lock.locked() or any(not t.done() for t in _bg_tasks)
         waiting = request.session.get("await_collect")
@@ -897,7 +898,11 @@ async def settings_save(request: Request):
             theme = form.get("theme", "auto")
             if theme not in ("auto", "dark", "light"):
                 raise ValueError
+            style = form.get("style", "glass")
+            if style not in ("glass", "nothing"):
+                raise ValueError
             db.set_setting("theme", theme)
+            db.set_setting("ui_style", style)
             db.set_setting("currency", cur)
             msg = "Einstellungen gespeichert."
             if cur == "EUR":

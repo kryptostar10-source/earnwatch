@@ -57,7 +57,12 @@
         <option value="EUR" {% if currency == 'EUR' %}selected{% endif %}>Euro (€) – Kurs automatisch von der EZB</option>
       </select></label>
     {% if currency == 'EUR' and eur_rate > 0 %}<p class="small muted">1 $ = {{ ('%.4f'|format(eur_rate)).replace('.', ',') }} € · Stand {{ eur_rate_ts|dtfmt }}</p>{% endif %}
-    <label>Design
+    <label>Stil
+      <select name="style" class="block">
+        <option value="glass" {% if ui_style == 'glass' %}selected{% endif %}>Liquid Glass (Glasflächen, bunt)</option>
+        <option value="nothing" {% if ui_style == 'nothing' %}selected{% endif %}>Dot (schwarz-weiß, Punktraster, roter Akzent)</option>
+      </select></label>
+    <label>Design (hell/dunkel)
       <select name="theme" class="block">
         <option value="auto" {% if theme == 'auto' %}selected{% endif %}>Automatisch (wie iPhone/PC)</option>
         <option value="dark" {% if theme == 'dark' %}selected{% endif %}>Immer dunkel</option>

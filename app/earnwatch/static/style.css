@@ -446,3 +446,85 @@ textarea.code{display:block;width:100%;margin-top:6px;padding:14px;border:1px so
 .pkname{flex:1;min-width:0;display:flex;flex-direction:column}.pkname small{font-size:11px;color:var(--muted)}
 [hidden]{display:none!important}
 .livedot.bad{background:#f87171;box-shadow:0 0 10px #f87171}
+
+/* ======================================================================
+   Stil "Dot" (Nothing-inspiriert): schwarz-weiß, Punktraster, roter Akzent,
+   flache Flächen, kantiger, Mono-Zahlen, Großbuchstaben-Labels.
+   Nur allgemeine Optik – kein Logo, keine Markenschrift.
+   ====================================================================== */
+:root[data-style=nothing]{
+  --bg:#0a0a0a;
+  --text:#fff;--soft:rgba(255,255,255,.82);--muted:rgba(255,255,255,.55);--faint:rgba(255,255,255,.4);
+  --glass:rgba(255,255,255,.035);--glass-2:rgba(255,255,255,.06);--glass-3:rgba(255,255,255,.11);
+  --edge:rgba(255,255,255,.16);--edge-hi:rgba(255,255,255,.16);--line:rgba(255,255,255,.1);--track:rgba(255,255,255,.12);
+  --accent:#ff2a2a;--accent-hi:#ff5656;--ink:#fff;
+  --ok:#eaeaea;--ok-bg:rgba(255,255,255,.08);--err:#ff5050;--err-bg:rgba(255,42,42,.16);--warn:#eaeaea;--warn-bg:rgba(255,255,255,.08);
+  --blur:none;--shadow:none;
+  --r-xl:12px;--r-lg:10px;--r-md:8px;--r-sm:6px;--pill:6px;
+  --field:rgba(255,255,255,.05);--gridc:rgba(255,255,255,.1);--hover:rgba(255,255,255,.06);--avg:rgba(255,255,255,.5);
+  --seg-on:#fff;--seg-on-ink:#000;--link:#ff5656;--link-hi:#ff8c8c;
+  --mobile-bar:rgba(10,10,10,.92);--tabbar:rgba(16,16,16,.94);--solid:#141414;--hm0:rgba(255,255,255,.07);
+  --num:"JetBrains Mono",ui-monospace,"SF Mono",Menlo,monospace;
+  color-scheme:dark;
+}
+@media (prefers-color-scheme:light){:root[data-style=nothing]:not([data-theme=dark]){
+  --bg:#edede9;
+  --text:#111;--soft:rgba(17,17,17,.8);--muted:rgba(17,17,17,.6);--faint:rgba(17,17,17,.45);
+  --glass:rgba(255,255,255,.65);--glass-2:rgba(255,255,255,.82);--glass-3:#fff;
+  --edge:rgba(17,17,17,.16);--edge-hi:rgba(17,17,17,.14);--line:rgba(17,17,17,.1);--track:rgba(17,17,17,.12);
+  --accent:#e60023;--accent-hi:#ff2a2a;--ink:#fff;
+  --ok:#111;--ok-bg:rgba(17,17,17,.06);--err:#c40018;--err-bg:rgba(230,0,35,.1);--warn:#111;--warn-bg:rgba(17,17,17,.06);
+  --field:#fff;--gridc:rgba(17,17,17,.1);--hover:rgba(17,17,17,.05);--avg:rgba(17,17,17,.5);
+  --seg-on:#111;--seg-on-ink:#fff;--link:#c40018;--link-hi:#e60023;
+  --mobile-bar:rgba(237,237,233,.92);--tabbar:rgba(255,255,255,.92);--solid:#fff;--hm0:rgba(17,17,17,.07);
+  color-scheme:light;
+}}
+:root[data-style=nothing][data-theme=light]{
+  --bg:#edede9;
+  --text:#111;--soft:rgba(17,17,17,.8);--muted:rgba(17,17,17,.6);--faint:rgba(17,17,17,.45);
+  --glass:rgba(255,255,255,.65);--glass-2:rgba(255,255,255,.82);--glass-3:#fff;
+  --edge:rgba(17,17,17,.16);--edge-hi:rgba(17,17,17,.14);--line:rgba(17,17,17,.1);--track:rgba(17,17,17,.12);
+  --accent:#e60023;--accent-hi:#ff2a2a;--ink:#fff;
+  --ok:#111;--ok-bg:rgba(17,17,17,.06);--err:#c40018;--err-bg:rgba(230,0,35,.1);--warn:#111;--warn-bg:rgba(17,17,17,.06);
+  --field:#fff;--gridc:rgba(17,17,17,.1);--hover:rgba(17,17,17,.05);--avg:rgba(17,17,17,.5);
+  --seg-on:#111;--seg-on-ink:#fff;--link:#c40018;--link-hi:#e60023;
+  --mobile-bar:rgba(237,237,233,.92);--tabbar:rgba(255,255,255,.92);--solid:#fff;--hm0:rgba(17,17,17,.07);
+  color-scheme:light;
+}
+/* Punktraster-Hintergrund statt der bunten Verläufe */
+:root[data-style=nothing] body::before{
+  background:radial-gradient(var(--hm0) 1.3px, transparent 1.3px) 0 0 / 22px 22px, var(--bg)}
+/* Großbuchstaben + weiter Abstand für Labels/Überschriften */
+[data-style=nothing] h1,[data-style=nothing] h2,[data-style=nothing] h3,
+[data-style=nothing] .kpi span,[data-style=nothing] .mini span,[data-style=nothing] .pill,
+[data-style=nothing] .devchip,[data-style=nothing] .seg a,[data-style=nothing] .badge,
+[data-style=nothing] .brand small,[data-style=nothing] .date,[data-style=nothing] th,
+[data-style=nothing] .herocard .top,[data-style=nothing] .soft,[data-style=nothing] .tag{
+  text-transform:uppercase;letter-spacing:.09em}
+[data-style=nothing] .brand b{letter-spacing:.14em}
+/* Hero-Karte: flaches Panel statt Lindgrün-Verlauf */
+[data-style=nothing] .herocard{background:var(--glass-2);color:var(--text);border:1px solid var(--edge);box-shadow:none}
+[data-style=nothing] .herocard::after{display:none}
+[data-style=nothing] .herocard .tag{background:var(--glass-3);color:var(--text);border:1px solid var(--edge)}
+[data-style=nothing] .herospark rect{fill:var(--accent)}
+[data-style=nothing] .livedot.dark{background:var(--accent);box-shadow:0 0 0 3px var(--err-bg)}
+[data-style=nothing] .livedot{background:var(--accent);box-shadow:0 0 8px var(--accent)}
+/* KPI aktiv, Logo, Plattform-Hero */
+[data-style=nothing] .kpi[aria-current=page]{background:var(--glass-3);border-color:var(--accent)}
+[data-style=nothing] .logo{border-radius:8px;box-shadow:inset 0 0 0 1px rgba(255,255,255,.3)}
+[data-style=nothing] .pfhero{background:var(--glass-2)!important;color:var(--text);border:1px solid var(--edge);box-shadow:none}
+[data-style=nothing] .pfhero::after{display:none}
+[data-style=nothing] .pfhero .big{text-shadow:none}
+[data-style=nothing] .pfhero .tag{background:var(--glass-3);border-color:var(--edge)}
+[data-style=nothing] .pfswitch a[aria-current=page]{background:var(--accent);color:#fff;border-color:var(--accent)}
+[data-style=nothing] .pfswitch a[aria-current=page] .dot{background:#fff}
+/* Buttons/Segmente leicht kantiger wirken lassen */
+[data-style=nothing] .btn,[data-style=nothing] .seg,[data-style=nothing] .seg a,[data-style=nothing] .kpi,
+[data-style=nothing] .pill,[data-style=nothing] .devchip{border-radius:var(--r-sm)}
+/* Grüne Glanzlichter/Verläufe im Dot-Stil durch Rot/Neutral ersetzen */
+:root[data-style=nothing]{--heatc:var(--accent)}
+[data-style=nothing] .btn.primary{box-shadow:inset 0 1px 0 rgba(255,255,255,.25)}
+[data-style=nothing] .btn.primary:hover{box-shadow:inset 0 1px 0 rgba(255,255,255,.3)}
+[data-style=nothing] .kpi[aria-current=page]{background:var(--glass-3)}
+[data-style=nothing] .ach.got .achicon,[data-style=nothing] .achmini.got{
+  background:var(--err-bg);border-color:var(--accent);box-shadow:none}
