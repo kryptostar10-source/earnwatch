@@ -377,7 +377,13 @@ def collect_grass(creds: dict) -> Result:
 # --- Bytelixir ------------------------------------------------------------
 BL_BASE = "https://dash.bytelixir.com"
 BL_REMEMBER = "remember_web_59ba36addc2b2f9401580f014c7f58ea4e30989d"
-_BL_RE = re.compile(r"<span>\$</span>(\d+\.\d+)<span[^>]*>(\d*)</span>")
+# Guthaben steht in der hervorgehobenen Zeile (Klasse "text-primary").
+# Format seit 10/2026:  <span>$</span><span>0.39</span><span class="text-xs">extra</span>
+_BL_BAL = re.compile(r'text-primary[^>]*>\s*<span>\$</span>\s*<span>(\d[\d,]*(?:\.\d+)?)</span>(?:\s*<span[^>]*>(\d*)</span>)?')
+# Fallback: irgendein "$<span>Zahl</span>" auf der Seite
+_BL_RE = re.compile(r'<span>\$</span>\s*<span>(\d[\d,]*(?:\.\d+)?)</span>(?:\s*<span[^>]*>(\d*)</span>)?')
+# Fallback: ganz altes Format, Zahl ohne eigenes span
+_BL_OLD = re.compile(r'<span>\$</span>(\d[\d,]*\.\d+)<span[^>]*>(\d*)</span>')
 
 
 def collect_bytelixir(creds: dict) -> Result:
@@ -401,9 +407,9 @@ def collect_bytelixir(creds: dict) -> Result:
             raise CollectError(f"Dashboard-Abruf fehlgeschlagen (HTTP {st})")
         html = raw.decode("utf-8", "replace")
         vals = []
-        for main, extra in _BL_RE.findall(html):
+        for main, extra in (_BL_BAL.findall(html) or _BL_RE.findall(html) or _BL_OLD.findall(html)):
             try:
-                vals.append(float(main + extra))
+                vals.append(float(main.replace(",", "") + (extra or "")))
             except ValueError:
                 pass
         if not vals:
