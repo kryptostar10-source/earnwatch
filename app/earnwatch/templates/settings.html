@@ -194,14 +194,17 @@
 
 {% if containers.services %}
 <section class="card">
-  <div class="cardhead"><h2>Container</h2><span class="small muted">geprüft {{ containers.ts|ago }} vom Container-Wächter</span></div>
+  <div class="cardhead"><h2>Container</h2><span class="small muted">alle auf dem Server · geprüft {{ containers.ts|ago }}</span></div>
   <div class="tablewrap"><table>
-    <thead><tr><th>Dienst</th><th>Zustand</th><th class="num">Neustarts</th></tr></thead>
+    <thead><tr><th>Container</th><th>Zustand</th><th class="num">Neustarts</th></tr></thead>
     <tbody>{% for c in containers.services %}
-      <tr><td>{{ c.label }}</td>
-      <td>{% if c.state == 'running' and c.health != 'unhealthy' %}<span class="pill ok">läuft{% if c.health == 'healthy' %} · gesund{% endif %}</span>{% else %}<span class="pill err">{{ c.state }}{% if c.health %} · {{ c.health }}{% endif %}</span>{% endif %}</td>
+      <tr><td>{{ c.label }}{% if not c.own %} <span class="pill dim">extern</span>{% endif %}</td>
+      <td>{% if c.state == 'running' and c.health != 'unhealthy' %}<span class="pill ok">läuft{% if c.health == 'healthy' %} · gesund{% endif %}</span>
+          {% elif c.state == 'paused' %}<span class="pill warn">pausiert</span>
+          {% else %}<span class="pill err">{{ c.state }}{% if c.health %} · {{ c.health }}{% endif %}</span>{% endif %}</td>
       <td class="num">{{ c.restarts }}</td></tr>{% endfor %}
     </tbody></table></div>
+  <p class="hint">„extern“ = läuft nicht zu EarnWatch. Diese werden nur angezeigt, nie automatisch neu gestartet.</p>
 </section>
 {% endif %}
 

@@ -189,10 +189,12 @@ def render(request: Request, name: str, ctx: dict | None = None, status: int = 2
         except ValueError:
             ct = {}
         if ct.get("services") and time.time() - ct.get("ts", 0) < 20 * 60:
-            svc = ct["services"]
-            up = sum(1 for x in svc if x["state"] == "running" and x.get("health") != "unhealthy")
-            ctx["status"]["containers"] = {"up": up, "total": len(svc),
-                                           "down": [x["label"] for x in svc if x["state"] != "running" or x.get("health") == "unhealthy"]}
+            # Ampel in der Seitenleiste nur für EIGENE Container – fremde (z. B. absichtlich
+            # gestoppte) sollen sie nicht auf Rot schalten. Die Tabelle zeigt trotzdem alle.
+            own = [x for x in ct["services"] if x.get("own")]
+            up = sum(1 for x in own if x["state"] == "running" and x.get("health") != "unhealthy")
+            ctx["status"]["containers"] = {"up": up, "total": len(own),
+                                           "down": [x["label"] for x in own if x["state"] != "running" or x.get("health") == "unhealthy"]}
     return templates.TemplateResponse(request, name, ctx, status_code=status)
 
 
