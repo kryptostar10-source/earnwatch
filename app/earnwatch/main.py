@@ -191,7 +191,8 @@ def render(request: Request, name: str, ctx: dict | None = None, status: int = 2
         if ct.get("services") and time.time() - ct.get("ts", 0) < 20 * 60:
             # Ampel in der Seitenleiste nur für EIGENE Container – fremde (z. B. absichtlich
             # gestoppte) sollen sie nicht auf Rot schalten. Die Tabelle zeigt trotzdem alle.
-            own = [x for x in ct["services"] if x.get("own")]
+            # Nur eigene zählen; solange noch keine markiert sind (alte Daten) alle nehmen – nie 0/0.
+            own = [x for x in ct["services"] if x.get("own")] or ct["services"]
             up = sum(1 for x in own if x["state"] == "running" and x.get("health") != "unhealthy")
             ctx["status"]["containers"] = {"up": up, "total": len(own),
                                            "down": [x["label"] for x in own if x["state"] != "running" or x.get("health") == "unhealthy"]}
