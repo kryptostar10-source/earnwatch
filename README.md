@@ -1,298 +1,514 @@
-# EarnWatch – Passive Einnahmen sicher tracken
+# EarnWatch – deine passiven Einnahmen an einem Ort
 
-Ein schlankes Dashboard für deinen Proxmox-Docker-Host mit **eigener IP im Heimnetz**,
-**HTTPS** und **Login**. Es ruft regelmäßig deine Kontostände ab bei
+EarnWatch ist ein eigenes, sicheres Dashboard für deinen Heimserver (z. B. Proxmox mit Docker).
+Es fragt regelmäßig deine Kontostände bei Honeygain, EarnApp, Grass, Bytelixir, Pawns.app, Earn.fm,
+Wipter und Duino-Coin ab und zeigt dir, was du **heute, diese Woche, diesen Monat und dieses Jahr** verdienst –
+am PC, auf dem iPhone und auf Wunsch auch von unterwegs.
 
-- **Honeygain** (USD) und **Honeygain JumpTask** getrennt – auf Wunsch mit zwei verschiedenen Honeygain-Konten
-- **EarnApp** (USD)
-- **Grass** (Punkte – haben keinen festen Dollarwert und werden separat gezeigt)
-- **Bytelixir** (USD)
-- **Pawns.app** (IPRoyal, USD)
-- **Earn.fm** (USD)
-- **Wipter** (USD, Kontostand wird manuell eingetragen – Wipter hat keine Schnittstelle)
-- **Duino-Coin** (DUCO, mit aktuellem Kurs in USD umgerechnet; zeigt auch deine aktiven Miner, z. B. ESP32)
+![EarnWatch Übersicht im Stil Liquid Glass](docs/screenshots/uebersicht-liquid-glass.jpg)
 
-und zeigt daraus Einnahmen **heute, diese Woche, diesen Monat, dieses Jahr** und gesamt,
-ein Diagramm nach **Tagen, Wochen, Monaten oder Jahren**, den Guthaben-Verlauf,
-erkannte Auszahlungen und eine Monats-Prognose.
-Optional startet es die Honeygain- und EarnApp-Container gleich mit (wie CashPilot).
+> Alle Bilder zeigen **Beispieldaten**.
 
-## Schnellstart (Terminal)
+---
 
-Auf deinem Docker-Server (VM auf Proxmox) als root:
+## Inhalt
 
-```bash
-git clone https://github.com/kryptostar10-source/earnwatch.git /opt/earnwatch
-cd /opt/earnwatch
-bash install.sh
-```
+1. [Vorschau](#vorschau)
+2. [Was EarnWatch kann](#was-earnwatch-kann)
+3. [Was du brauchst](#was-du-brauchst)
+4. [Installation Schritt für Schritt](#installation-schritt-für-schritt)
+5. [Erste Anmeldung](#erste-anmeldung)
+6. [Plattformen eintragen](#plattformen-eintragen)
+7. [Stil auswählen](#stil-auswählen)
+8. [Aufs iPhone holen](#aufs-iphone-holen)
+9. [Von unterwegs über Tailscale](#von-unterwegs-über-tailscale)
+10. [Benachrichtigungen aufs Handy](#benachrichtigungen-aufs-handy)
+11. [Updates & Backups](#updates--backups)
+12. [Hilfe bei Problemen](#hilfe-bei-problemen)
+13. [Sicherheit](#sicherheit)
+14. [Aufbau des Projekts](#aufbau-des-projekts)
 
-Das Skript erkennt Netzwerkkarte, Netz und Router, fragt nach einer freien IP für EarnWatch,
-erzeugt das Einrichtungs-Token und startet alles. Danach vom PC/Handy `https://<deine-IP>` öffnen.
+---
 
-**Update (am besten einmal im Monat – holt auch Sicherheits-Updates der Images):**
+## Vorschau
 
-```bash
-sudo bash /opt/earnwatch/update.sh
-```
+### Drei Stile zum Auswählen
 
-**Earn-Apps als Container nachträglich einschalten:** einfach `sudo bash install.sh` nochmal ausführen
-(deine Einstellungen bleiben erhalten) oder in der `.env` z. B. `COMPOSE_PROFILES=honeygain,earnapp,pawns,earnfm` setzen.
+**Liquid Glass** – bunte Glasflächen (Standard)
 
-## Was ist anders/sicherer als CashPilot?
+![Stil Liquid Glass](docs/screenshots/uebersicht-liquid-glass.jpg)
 
-| | CashPilot | EarnWatch |
+**Dot** – schwarz-weiß mit rotem Akzent und Punktraster
+
+![Stil Dot](docs/screenshots/uebersicht-dot.jpg)
+
+**Frost** – helles Milchglas, schwebende Icon-Leiste und Ring-Diagramm
+
+![Stil Frost](docs/screenshots/uebersicht-frost.jpg)
+
+Liquid Glass und Dot gibt es jeweils hell und dunkel (automatisch wie dein Gerät, oder fest eingestellt):
+
+![Liquid Glass im Hell-Modus](docs/screenshots/uebersicht-hell.jpg)
+
+### Auf dem iPhone
+
+![EarnWatch auf dem iPhone in allen drei Stilen](docs/screenshots/iphone-stile.jpg)
+
+### Eigene Seite für jede Plattform
+
+Ein Tipp auf eine Plattform öffnet ihre eigene Seite mit Diagramm, Guthaben-Verlauf, stärksten Wochentagen,
+Geräten und Auszahlungen.
+
+![Detailseite einer Plattform](docs/screenshots/plattform-seite.jpg)
+
+### Erfolge, Einstellungen, Container, Login
+
+![Erfolge](docs/screenshots/erfolge.jpg)
+
+<p>
+  <img src="docs/screenshots/einstellungen-stil.jpg" alt="Einstellungen mit Stil-Auswahl" width="49%">
+  <img src="docs/screenshots/container.jpg" alt="Container-Übersicht" width="49%">
+</p>
+
+![Login-Seite](docs/screenshots/login.jpg)
+
+<details>
+<summary>Die ganze Übersichtsseite anzeigen</summary>
+
+![Ganze Übersichtsseite](docs/screenshots/ganze-seite.jpg)
+
+</details>
+
+---
+
+## Was EarnWatch kann
+
+**Plattformen**
+
+| Plattform | Was angezeigt wird | Zugang in EarnWatch |
 |---|---|---|
-| Zugriff auf `/var/run/docker.sock` | ja (Worker kann jeden Container starten = Root auf dem Host) | **nein** – Earn-Apps stehen fest in der `docker-compose.yml` |
-| Erreichbarkeit | Port am Host | **eigene LAN-IP**, nur **HTTPS**, nur aus privaten Netzen |
-| Login | ja | ja: scrypt-Passwort-Hash, Sperre nach 5 Fehlversuchen, 12 h Sitzung |
-| Zugangsdaten | verschlüsselt | verschlüsselt (Fernet/AES), werden **nie** wieder angezeigt oder geloggt |
-| Web-Schutz | – | CSRF-Token + Origin-Prüfung, strikte CSP (kein JavaScript), `SameSite=Strict`-Cookies |
-| Container | – | App läuft als Nicht-Root, Dateisystem read-only, alle Linux-Capabilities entfernt |
-| Ersteinrichtung | – | erstes Konto nur mit geheimem Einrichtungs-Token aus der `.env` |
+| Honeygain | Guthaben in $, Geräte online, 30 Tage Verlauf | E-Mail + Passwort |
+| Honeygain JumpTask | getrennt von Honeygain | nutzt den Honeygain-Zugang |
+| EarnApp | Guthaben in $, Geräte online | Cookie `oauth-refresh-token` |
+| Grass | Punkte, Geräte online | Token aus dem Browser |
+| Bytelixir | Guthaben in $ | Cookie `remember_web_…` |
+| Pawns.app | Guthaben in $, Geräte online | E-Mail + Passwort |
+| Earn.fm | Guthaben in $ | E-Mail + Passwort |
+| Wipter | Guthaben in $ | trägst du selbst ein (keine Schnittstelle) |
+| Duino-Coin | DUCO + Wert in $, deine Miner (z. B. ESP32) | nur Benutzername |
 
-## Installation auf Proxmox
+**Funktionen**
 
-Voraussetzung: eine VM (empfohlen) oder ein LXC mit Docker + Docker Compose.
+- Einnahmen **heute / Woche / Monat / Jahr / gesamt**, Diagramm nach Tagen, Wochen, Monaten oder Jahren
+- **Live-Zähler** beim Guthaben (hochgerechnet aus deinem 7-Tage-Schnitt)
+- **Kalender „Dein Jahr“** mit Serie und Rekord, **Erfolge** zum Freischalten
+- Erkennt **Auszahlungen** automatisch, zeigt **Prognose** für den Monat
+- **Drei Stile** (Liquid Glass, Dot, Frost), **hell/dunkel**, **Euro** mit Tageskurs der EZB
+- **Handy-Benachrichtigungen** (ntfy oder Telegram), **iPhone-Widget**, als **App** auf dem Home-Bildschirm
+- **Login mit 2FA** (QR-Code) oder **Face ID / Passkey**
+- **Container-Wächter**: zeigt alle Docker-Container, startet abgestürzte EarnWatch-Container neu
+- Optional laufen **Honeygain, EarnApp, Pawns und Earn.fm** als Container gleich mit – abgeschottet vom Heimnetz
+- **Nächtliche Backups** und **automatische Updates**
 
-```bash
-# 1. Ordner auf den Docker-Host kopieren (z. B. per scp) und hinein wechseln
-cd earnwatch
+---
 
-# 2. Konfiguration anlegen
-cp .env.example .env
-nano .env
-```
+## Was du brauchst
 
-In der `.env` anpassen:
+- Einen Server mit **Linux und Docker**, z. B. eine **Ubuntu- oder Debian-VM auf Proxmox**
+  (eine VM ist einfacher als ein LXC-Container)
+- Eine **freie IP-Adresse** in deinem Heimnetz für EarnWatch, die dein Router nicht automatisch vergibt
+  (z. B. `192.168.178.250`)
+- Zugang zum Terminal des Servers als **root** bzw. mit `sudo`
 
-- `EW_IP` – eine **freie** IP in deinem Heimnetz, die **außerhalb des DHCP-Bereichs** deines Routers liegt (z. B. `192.168.1.50`)
-- `EW_SUBNET` / `EW_GATEWAY` – dein Heimnetz (Fritzbox meist `192.168.178.0/24` und `192.168.178.1`)
-- `EW_PARENT_IF` – Netzwerkkarte der VM, mit `ip a` nachsehen (oft `eth0` oder `ens18`)
-- `EW_SETUP_TOKEN` – ein zufälliger Wert, erzeugen mit `openssl rand -base64 24`
-
-```bash
-# 3. Starten (nur Dashboard)
-docker compose up -d --build
-
-#    …oder Dashboard + Honeygain- und EarnApp-Container
-docker compose --profile earners up -d --build
-```
-
-4. Im Browser `https://<EW_IP>` öffnen. Die Zertifikatswarnung einmal bestätigen
-   (das Zertifikat ist selbst erzeugt, das ist im Heimnetz normal).
-5. Einrichtungs-Token eingeben, Benutzername und Passwort festlegen.
-6. Unter **Einstellungen** die Zugangsdaten eintragen (nur die Plattformen, die du nutzt):
-   - **Honeygain:** E-Mail und Passwort
-   - **EarnApp:** auf earnapp.com einloggen → `F12` → *Anwendung/Speicher* → *Cookies* → Wert von `oauth-refresh-token` kopieren
-   - **Grass:** app.grass.io einloggen → `F12` → *Anwendung* → *Lokaler Speicher* → `https://app.grass.io` → Wert von `accessToken` (bzw. `token`) kopieren
-   - **Bytelixir:** dash.bytelixir.com einloggen **mit „Remember Me“** → `F12` → *Anwendung* → *Cookies* → `bytelixir_session`, `remember_web_…` und `XSRF-TOKEN` kopieren. Wichtig ist `remember_web_…`, das hält etwa ein Jahr.
-   - **Pawns.app / Earn.fm:** E-Mail und Passwort wie auf der Webseite
-   - **Wipter:** keinen Zugang nötig – den Kontostand trägst du direkt auf der Übersicht ein
-   - **Duino-Coin:** nur dein Benutzername (Duino-Kontostände sind öffentlich, kein Passwort nötig)
-7. Auf **Jetzt abrufen** klicken. Danach läuft der Abruf automatisch (Standard: stündlich).
-
-> Tageseinnahmen entstehen aus der Differenz zweier Abrufe. Das Diagramm füllt sich deshalb erst nach ein paar Stunden.
-> Sinkt ein Guthaben, wird das als Auszahlung verbucht.
-
-## Wichtige Hinweise
-
-- **Der Proxmox-/Docker-Host selbst kann die macvlan-IP nicht erreichen.** Das ist eine Eigenheit von macvlan.
-  Alle anderen Geräte im Heimnetz (PC, Handy, MacBook) können es. Zum Testen also vom PC aus öffnen.
-- In Proxmox bei der VM unter *Hardware → Netzwerkkarte* die **Firewall bzw. den MAC-Filter** ausschalten,
-  falls die IP nicht erreichbar ist (macvlan nutzt eine zusätzliche MAC-Adresse).
-- **LXC statt VM:** Der Container braucht `nesting=1`, und macvlan klappt in unprivilegierten LXC oft nicht. Eine VM ist einfacher.
-- **Honeygain** erlaubt nur **1 Gerät pro öffentlicher IP**. Läuft Honeygain schon auf einem anderen Gerät bei dir, verdient der Container nichts.
-- **EarnApp-Container:** Nach dem ersten Start musst du das Gerät einmal verknüpfen. Öffne dazu
-  `https://earnapp.com/r/<deine EARNAPP_UUID>` im Browser, während du eingeloggt bist.
-  EarnApp sieht Container-Betrieb offiziell nicht gern; das Image `fazalfarhan01/earnapp` ist ein Community-Image.
-- Die Earn-Apps laufen in einem eigenen Docker-Netz, getrennt vom Dashboard.
-- **Grass und Bytelixir** gibt es nicht als offiziellen Docker-Container. Sie laufen weiter als App bzw.
-  Browser-Erweiterung auf deinen Geräten; EarnWatch liest nur den Kontostand mit.
-- **Duino-Coin** schürfst du wie gewohnt (z. B. mit deinen ESP32); EarnWatch zeigt Guthaben, Miner-Anzahl und Hashrate.
-- **Grass-Punkte** werden je Epoche neu gezählt. Sinkt der Stand, wertet EarnWatch das als neue Epoche, nicht als Auszahlung.
-- **Bytelixir** hat keine offizielle Schnittstelle; der Kontostand wird aus der Dashboard-Seite gelesen.
-  Ändert Bytelixir die Seite, kann der Abruf ausfallen.
-- Honeygain mit Google-/Apple-Login: Setze im Honeygain-Konto ein Passwort, sonst klappt der Abruf nicht.
-  Ist bei Honeygain 2FA oder ein Captcha aktiv, kann der automatische Login scheitern.
-
-## Pflege
+**Docker ist noch nicht installiert?** Auf Ubuntu/Debian geht das mit einem Befehl:
 
 ```bash
-docker compose logs -f earnwatch          # Log ansehen (enthält nie Passwörter/Tokens)
-docker compose pull && docker compose up -d --build   # aktualisieren
+curl -fsSL https://get.docker.com | sudo sh
 ```
+
+Prüfen: `sudo docker compose version` sollte eine Versionsnummer anzeigen.
+
+---
+
+## Installation Schritt für Schritt
+
+### 1. Herunterladen
+
+Im Terminal des Servers:
+
+```bash
+sudo apt install -y git
+sudo git clone https://github.com/kryptostar10-source/earnwatch.git /opt/earnwatch
+cd /opt/earnwatch
+```
+
+### 2. Installation starten
+
+```bash
+sudo bash install.sh
+```
+
+Das Skript stellt dir ein paar Fragen. Bei allem, was in eckigen Klammern **groß** geschrieben ist,
+reicht **Enter** (`[J/n]` = Enter heißt Ja, `[j/N]` = Enter heißt Nein).
+
+| Frage | Was du machst |
+|---|---|
+| **Erkanntes Netzwerk … Stimmt das?** | Meist einfach **Enter** |
+| **Freie IP für EarnWatch** | Eine freie Adresse eintippen, z. B. `192.168.178.250`. Das Skript prüft, ob sie wirklich frei ist |
+| **Fernzugriff über Tailscale einrichten?** | **j**, wenn du EarnWatch auch unterwegs nutzen willst (siehe [Tailscale](#von-unterwegs-über-tailscale)), sonst Enter |
+| **Earn-Apps als Container mitlaufen lassen?** | **j**, wenn Honeygain, EarnApp, Pawns oder Earn.fm auf dem Server Geld verdienen sollen. Danach je App fragen, E-Mail/Passwort eingeben |
+| **LAN-Sperre einrichten?** | **Enter** (empfohlen): Die Earn-Apps kommen dann nicht an dein Heimnetz |
+| **Nächtliches Backup?** | **Enter** |
+| **Sonntags automatisch aktualisieren?** | **Enter** |
+| **Container-Wächter?** | **Enter** |
+
+> Läuft eine App wie Honeygain schon auf deinem PC, lass sie auf dem Server weg:
+> Honeygain und Pawns bezahlen **nur ein Gerät pro Internetanschluss**.
+
+### 3. Fertig
+
+Am Ende zeigt das Skript zum Beispiel:
+
+```
+Fertig!
+  Öffne von PC/Handy:   https://192.168.178.250   (Zertifikatswarnung einmal bestätigen)
+  Einrichtungs-Token:   Xy7…
+```
+
+Den **Einrichtungs-Token** brauchst du gleich für die erste Anmeldung. Er steht auch in `/opt/earnwatch/.env`.
+
+> **Wichtig:** Vom Server selbst ist die neue IP nicht erreichbar – das ist bei dieser Netzwerk-Art normal.
+> Öffne EarnWatch vom **PC oder Handy** aus.
+
+---
+
+## Erste Anmeldung
+
+1. Am PC im Browser `https://<deine EarnWatch-IP>` öffnen.
+2. Die **Zertifikatswarnung** einmal bestätigen („Erweitert“ → „Weiter zu …“). Das Zertifikat ist selbst
+   erstellt, das ist im Heimnetz normal. Wie du die Warnung dauerhaft loswirst, steht unter [Sicherheit](#sicherheit).
+3. **Einrichtungs-Token** eingeben, Benutzername und Passwort (mindestens 12 Zeichen) festlegen.
+4. Empfohlen: Unter **Einstellungen → Zwei-Faktor-Anmeldung → Mit QR-Code einrichten** 2FA einschalten
+   (Google/Microsoft Authenticator, Aegis, 2FAS …). Die 8 Wiederherstellungscodes gut aufbewahren.
+
+![Login-Seite](docs/screenshots/login.jpg)
+
+---
+
+## Plattformen eintragen
+
+Unter **Einstellungen** hat jede Plattform eine eigene Kachel. Trag nur die ein, die du nutzt, und klick auf
+**Speichern**. Danach auf der Übersicht **„Jetzt abrufen“** drücken. Ab dann läuft alles automatisch (Standard: stündlich).
+
+<details>
+<summary><b>Honeygain, Pawns.app, Earn.fm</b> – E-Mail und Passwort</summary>
+
+Einfach E-Mail und Passwort wie auf der Webseite eintragen.
+
+Meldest du dich dort mit **Google oder Apple** an, hast du kein eigenes Passwort. Setz dir eins:
+- Honeygain: auf dashboard.honeygain.com abmelden → „Passwort vergessen“ → neues Passwort setzen
+- Pawns: auf dashboard.pawns.app in den Einstellungen ein Passwort festlegen
+
+Honeygain JumpTask braucht nichts Eigenes – es nutzt automatisch den Honeygain-Zugang.
+</details>
+
+<details>
+<summary><b>EarnApp</b> – Cookie aus dem Browser</summary>
+
+1. Am PC auf **earnapp.com** einloggen.
+2. **F12** drücken → Reiter **Anwendung** (Application) → links **Cookies** → `https://earnapp.com`.
+3. Den Wert von **`oauth-refresh-token`** kopieren und in EarnWatch einfügen.
+</details>
+
+<details>
+<summary><b>Grass</b> – Token aus dem Browser</summary>
+
+1. Am PC auf **app.grass.io** einloggen.
+2. **F12** → **Anwendung** → **Lokaler Speicher** → `https://app.grass.io`.
+3. Den Wert von **`accessToken`** (manchmal `token`) kopieren.
+
+EarnWatch warnt dich 3 Tage bevor dieser Token abläuft.
+</details>
+
+<details>
+<summary><b>Bytelixir</b> – Cookie aus dem Browser (auch mit 2FA)</summary>
+
+1. Auf **dash.bytelixir.com** abmelden und **mit Haken bei „Remember Me“** neu anmelden
+   (inklusive 2FA-Code, falls aktiv).
+2. **F12** → **Anwendung** → **Cookies** → `https://dash.bytelixir.com`.
+3. Kopieren:
+   - **`remember_web_…`** (langer Name, Pflicht – hält etwa ein Jahr)
+   - `bytelixir_session`
+   - `XSRF-TOKEN` (optional)
+
+Gibt es kein `remember_web_…`, hast du ohne den Haken angemeldet.
+</details>
+
+<details>
+<summary><b>Wipter</b> und <b>Duino-Coin</b></summary>
+
+- **Wipter** hat keine Schnittstelle. Den Kontostand trägst du auf der Übersicht in der Wipter-Kachel selbst ein.
+- **Duino-Coin** braucht nur deinen **Benutzernamen** – die Kontostände sind öffentlich. EarnWatch zeigt auch
+  deine Miner (z. B. ESP32) mit Hashrate.
+</details>
+
+> Tageseinnahmen entstehen aus dem Unterschied zwischen zwei Abrufen. Das Diagramm füllt sich deshalb
+> in den ersten Stunden. Honeygain bringt seine letzten 30 Tage gleich mit.
+
+---
+
+## Stil auswählen
+
+**Einstellungen → Allgemein**
+
+![Stil-Auswahl in den Einstellungen](docs/screenshots/einstellungen-stil.jpg)
+
+- **Stil:** Liquid Glass, Dot oder Frost
+- **Design (hell/dunkel):** automatisch wie dein iPhone/PC, immer hell oder immer dunkel
+  (Frost ist immer hell)
+- **Währung:** Dollar oder Euro (Kurs kommt täglich automatisch von der Europäischen Zentralbank)
+
+Auf **Speichern** drücken – die Seite stellt sofort um.
+
+---
+
+## Aufs iPhone holen
+
+EarnWatch lässt sich wie eine App auf den Home-Bildschirm legen:
+
+1. Seite in **Safari** öffnen.
+2. Teilen-Knopf → **„Zum Home-Bildschirm“**.
+3. Beim Login **„Auf diesem Gerät angemeldet bleiben“** anhaken. Dann bleibst du angemeldet, solange du
+   EarnWatch mindestens alle 30 Tage öffnest.
+
+**Face ID statt Passwort:** Einstellungen → **Face ID / Passkey** → Passwort eingeben → „Passkey hinzufügen“.
+Danach auf der Login-Seite „Mit Face ID anmelden“. Das geht nur über die **Tailscale-Adresse** (…ts.net),
+nicht über die IP.
+
+**Widget auf dem Home-Bildschirm:** Einstellungen → **iPhone-Widget** → „Widget einrichten“ (am besten über die
+Tailscale-Adresse). Das angezeigte Skript in die kostenlose App **Scriptable** kopieren. Der Schlüssel darf nur
+Summen lesen und lässt sich jederzeit löschen.
+
+---
+
+## Von unterwegs über Tailscale
+
+Mit Tailscale erreichst du **nur EarnWatch** von unterwegs – mit echtem Zertifikat, ohne Portfreigabe im Router.
+Dein restliches Heimnetz bleibt unsichtbar, aus dem offenen Internet ist die Seite nicht erreichbar.
+
+1. Kostenloses Konto auf **login.tailscale.com** anlegen.
+2. Auf **login.tailscale.com/admin/dns** **MagicDNS** und **HTTPS Certificates** einschalten.
+3. Auf **login.tailscale.com/admin/settings/keys** → **„Generate auth key“** → Schlüssel kopieren.
+4. Auf dem Server `sudo bash /opt/earnwatch/install.sh` → bei „Tailscale“ **j** → Schlüssel einfügen
+   (man sieht beim Einfügen keine Zeichen, das ist normal) → Rest mit Enter.
+5. Tailscale-App aufs iPhone, mit demselben Konto anmelden.
+
+Am Ende zeigt das Skript deine Adresse, z. B. `https://earnwatch.tail1234.ts.net`.
+
+> **Tipp:** In der Tailscale-Verwaltung beim Gerät „earnwatch“ unter „…“ **Disable key expiry** wählen,
+> sonst musst du es nach 180 Tagen neu anmelden.
+
+---
 
 ## Benachrichtigungen aufs Handy
 
-Unter *Einstellungen → Benachrichtigungen* einrichten – mit der kostenlosen App **ntfy** (ohne Anmeldung)
-und/oder einem **Telegram**-Bot. Gemeldet werden (einzeln abschaltbar):
+**Einstellungen → Benachrichtigungen aufs Handy**
 
-- 💰 Auszahlung möglich (Grenze erreicht)
-- ⚠️ Abruf fehlgeschlagen / Login abgelaufen – und ✅ wenn es wieder läuft
-- ⛏️ Duino-Miner offline / wieder online
-- 🔐 neue Anmeldung bei EarnWatch, 🚨 gesperrte Login-Versuche
-- 🔑 Passwort geändert, 🛡️ 2FA ein/aus
-- 📊 Tageszusammenfassung zur Wunsch-Uhrzeit
+1. App **ntfy** aus dem App Store installieren (kostenlos, ohne Anmeldung – nicht verwechseln mit ähnlich
+   klingenden Apps).
+2. In EarnWatch das vorgeschlagene **Thema** speichern.
+3. In der ntfy-App auf **„+“** → genau dieses Thema abonnieren.
+4. In EarnWatch **„Test senden“** drücken.
 
-Das ntfy-Thema ist wie ein Passwort: Wer es kennt, kann mitlesen. EarnWatch schlägt ein zufälliges vor.
+Alternativ oder zusätzlich geht **Telegram** (Bot-Token + Chat-ID).
 
-## Plattform-Seiten & Geräte
+Gemeldet wird (einzeln abschaltbar):
+💰 Auszahlung möglich · ⚠️ Abruf fehlgeschlagen · 📴 Gerät/Miner offline · 🔐 neue Anmeldung ·
+🔑 Sicherheits-Änderungen · 📊 Tageszusammenfassung · 🏅 neuer Erfolg · 🐳 Container abgestürzt · ⏳ Login läuft bald ab
 
-Ein Tipp auf eine Plattform-Kachel öffnet ihre eigene Seite mit Säulendiagramm, Guthaben-Verlauf, stärksten
-Wochentagen und Auszahlungen. Bei **Honeygain, EarnApp, Pawns, Grass** und **Duino-Coin** zeigt EarnWatch
-außerdem, wie viele Geräte online sind (z. B. „3 / 4 online“) und meldet aufs Handy, wenn eins offline geht.
-Gespeichert werden dabei nur Zahlen – keine Gerätenamen oder IP-Adressen.
+> Das ntfy-Thema ist wie ein Passwort: Wer es kennt, kann mitlesen.
 
-„Jetzt abrufen“ läuft im Hintergrund: Die Seite lädt sich alle paar Sekunden selbst neu, bis alle Anbieter
-geantwortet haben, und zeigt dann das Ergebnis.
+---
 
-## Zugangsdaten der Earn-Apps ändern
+## Updates & Backups
 
-Steht bei Honeygain/Pawns/Earn.fm „Restarting“ (Log z. B. `not_valid_login_credentials`), sind E-Mail oder Passwort in
-der `.env` falsch. Neu eintragen und Container neu starten:
+**Aktualisieren** (holt die neueste Version und Sicherheits-Updates):
 
 ```bash
-sudo bash /opt/earnwatch/zugangsdaten.sh          # fragt, welche App
+cd /opt/earnwatch && sudo git pull && sudo docker compose up -d --build
 ```
 
-Hat der Anbieter wegen zu vieler Versuche gesperrt („too many tries“), mit **j** antworten – dann startet die App
-erst nach 60 Minuten mit den neuen Daten (der Container-Wächter wartet so lange).
+Hast du bei der Installation „Sonntags automatisch aktualisieren“ gewählt, passiert das von selbst.
+Nach größeren Updates einmal `sudo bash install.sh` ausführen (alles mit Enter) – dann werden auch neue
+Hintergrund-Dienste eingerichtet. Deine Daten und Einstellungen bleiben immer erhalten.
 
-## Extras
-
-- **Kalender-Heatmap** („Dein Jahr“) auf der Übersicht und jeder Plattform-Seite, mit Serie und Rekord.
-- **Live-Zähler:** Das Guthaben oben zählt live hoch (hochgerechnet aus dem 7-Tage-Schnitt) – reines CSS, kein JavaScript.
-- **Erfolge** unter `/erfolge` (z. B. „Erste 100 $“, „30 Tage am Stück“) – neue gibt’s auch als Handy-Nachricht.
-- **Hell-Modus:** Einstellungen → Design (automatisch wie iPhone/PC, immer hell oder immer dunkel).
-- **Euro:** Einstellungen → Währung → Euro. Der Kurs kommt automatisch täglich von der EZB.
-- **iPhone-Widget:** Einstellungen → iPhone-Widget → Schlüssel erzeugen und das angezeigte Skript in die App
-  „Scriptable“ kopieren. Der Schlüssel darf nur Summen lesen (kein Login, keine Änderungen) und ist jederzeit widerrufbar.
-  Am besten über die Tailscale-Adresse einrichten.
-- **Face ID / Passkey:** Einstellungen → Face ID / Passkey → hinzufügen. Danach auf der Login-Seite „Mit Face ID anmelden“.
-  Geht nur über die Tailscale-Adresse (…ts.net), weil Passkeys an einen Namen gebunden sind, nicht an eine IP.
-  Das ist die einzige Stelle mit JavaScript (eigene Datei, nur auf Login- und Einstellungsseite erlaubt).
-- **Ablauf-Warnung:** Kopierte Tokens (z. B. Grass) werden auf ihr Ablaufdatum geprüft – 3 Tage vorher kommt eine Nachricht.
-- **Container-Wächter** (`healthcheck.sh`, alle 5 Min. per systemd-Timer): startet gestoppte/abgestürzte Container neu und
-  meldet es aufs Handy. Bewusst pausierte Dienste in der `.env` eintragen: `HC_IGNORE=pawns,earnfm`.
-  EarnWatch selbst bekommt dafür keinen Docker-Zugriff.
-
-## Honeygain-Verlauf
-
-Beim ersten Abruf übernimmt EarnWatch die Tageseinnahmen der letzten 30 Tage direkt von Honeygain
-(normal und JumpTask). Diagramm und Wochen-/Monatswerte sind dadurch sofort gefüllt.
-
-## Backups & automatische Updates
-
-`install.sh` richtet auf Wunsch ein:
-- **jede Nacht um 3:30** ein Backup nach `/var/backups/earnwatch` (die letzten 7 bleiben, nur root lesbar)
-- **jeden Sonntag** ein automatisches Update inkl. Sicherheits-Updates aller Images (vorher wird gesichert)
+**Backups** laufen jede Nacht um 3:30 nach `/var/backups/earnwatch` (die letzten 7 bleiben):
 
 ```bash
 sudo bash /opt/earnwatch/backup.sh                 # Backup jetzt
-sudo bash /opt/earnwatch/restore.sh                # zeigt vorhandene Backups
+sudo bash /opt/earnwatch/restore.sh                # vorhandene Backups anzeigen
 sudo bash /opt/earnwatch/restore.sh <datei>        # wiederherstellen
 systemctl list-timers 'earnwatch-*'                # wann läuft was
 ```
 
-Tipp: Kopiere ab und zu ein Backup auf einen anderen Rechner/USB-Stick. Es enthält den Schlüssel
-zu deinen gespeicherten Zugangsdaten – also sicher aufbewahren.
+Kopier ab und zu ein Backup auf einen anderen Rechner oder USB-Stick. Es enthält den Schlüssel zu deinen
+gespeicherten Zugangsdaten – also sicher aufbewahren.
 
-## Als App aufs iPhone
+---
 
-EarnWatch lässt sich wie eine App auf den Home-Bildschirm legen (eigenes Icon, Vollbild, Tab-Leiste unten):
-Seite in **Safari** öffnen → Teilen-Knopf → **„Zum Home-Bildschirm“**. Beim Login „Auf diesem Gerät angemeldet
-bleiben“ anhaken – dann bleibst du angemeldet, solange du EarnWatch mindestens alle 30 Tage öffnest (spätestens
-nach 90 Tagen fragt EarnWatch einmal neu nach dem Passwort). Ohne Haken: Abmeldung nach 12 Stunden ohne Nutzung. Unterwegs zusammen mit Tailscale (siehe unten) nutzen.
-Tipp: Am besten über die Tailscale-Adresse hinzufügen – die hat ein echtes Zertifikat.
+## Hilfe bei Problemen
 
-## Von unterwegs: nur EarnWatch über Tailscale
+<details>
+<summary><b>Die Seite lädt nicht</b></summary>
 
-EarnWatch kann einen eigenen kleinen Tailscale-Container mitstarten. Dann ist **ausschließlich diese Seite**
-in deinem Tailscale-Netz erreichbar – unter `https://earnwatch.<dein-tailnet>.ts.net` mit echtem Zertifikat.
-Dein restliches Heimnetz bleibt unsichtbar, im Router muss nichts freigegeben werden, und aus dem Internet
-ist die Seite weiterhin nicht erreichbar (Tailscale „Funnel“ ist ausdrücklich aus).
+- Vom **PC oder Handy** öffnen, nicht vom Server selbst.
+- In Proxmox bei der VM unter *Hardware → Netzwerkkarte* die **Firewall** ausschalten
+  (EarnWatch nutzt eine zusätzliche MAC-Adresse).
+- Läuft alles? `cd /opt/earnwatch && sudo docker compose ps`
+</details>
 
-1. Kostenloses Konto auf https://login.tailscale.com anlegen
-2. Unter https://login.tailscale.com/admin/dns **MagicDNS** und **HTTPS Certificates** einschalten
-3. Unter https://login.tailscale.com/admin/settings/keys einen **Auth-Key** erzeugen (nicht wiederverwendbar)
-4. `sudo bash install.sh` ausführen, bei „Fernzugriff über Tailscale“ `j` wählen und den Key einfügen
-5. Tailscale-App aufs Handy, mit demselben Konto anmelden – fertig. Die Adresse zeigt `install.sh` am Ende an.
+<details>
+<summary><b>Ein Container steht auf „Restarting“</b> (Honeygain, Pawns …)</summary>
 
-Tipps: In der Tailscale-Verwaltung beim Gerät „earnwatch“ **Key expiry deaktivieren**, sonst musst du es
-nach 180 Tagen neu anmelden. Nur deine eigenen Geräte ins Tailnet aufnehmen. Und 2FA in EarnWatch einschalten.
-
-**LAN-Sperre für die Earn-Apps:** Honeygain, EarnApp, Pawns und Earn.fm leiten fremden Internetverkehr
-über deinen Anschluss. `install.sh` richtet auf Wunsch eine Firewall-Regel ein (`lan-guard.sh`, als
-systemd-Dienst `earnwatch-lan-guard`), die diesen Containern den Zugriff auf dein Heimnetz verbietet –
-Internet geht weiter. Status prüfen: `sudo /opt/earnwatch/lan-guard.sh status`
-
-**Zertifikatswarnung dauerhaft loswerden (empfohlen):** Statt die Warnung jedes Mal wegzuklicken,
-installiere das Stammzertifikat von Caddy einmal auf deinen Geräten:
+Log ansehen:
 
 ```bash
-sudo docker compose exec caddy cat /data/caddy/pki/authorities/local/root.crt > earnwatch-root.crt
+sudo docker logs --tail 20 honeygain
 ```
 
-Die Datei auf PC/Mac/Handy kopieren und als vertrauenswürdige Zertifizierungsstelle importieren
-(Windows: Doppelklick → „Vertrauenswürdige Stammzertifizierungsstellen“, Mac: Schlüsselbundverwaltung →
-„Immer vertrauen“). Danach zeigt der Browser das Schloss – und eine echte Warnung würde auffallen.
+- `not_valid_login_credentials` → E-Mail oder Passwort falsch. Neu eintragen (prüft die Daten direkt beim Anbieter):
+  ```bash
+  sudo bash /opt/earnwatch/zugangsdaten.sh honeygain
+  ```
+- `too many tries to log in` (Pawns) → Pawns sperrt kurz. `sudo bash zugangsdaten.sh pawns` und bei der Sperr-Frage
+  **j** – dann startet Pawns erst nach 60 Minuten neu.
+- `please use SDK or gui app` (Pawns) → Pawns lässt die Kommandozeile für dein Konto nicht zu. Lass Pawns
+  dann mit der normalen App auf dem PC laufen und nimm es auf dem Server heraus (siehe nächster Punkt).
+</details>
 
-**Hinweis Sicherheit:** Die Zugangsdaten von Grass, EarnApp und Bytelixir sind Login-Tokens.
-Wer sie hat, kommt in dein Konto. EarnWatch speichert sie verschlüsselt und zeigt sie nie wieder an.
+<details>
+<summary><b>Honeygain zeigt „network unused“ / eine App verdient auf dem Server nichts</b></summary>
 
-**Backup:** Das Volume `earnwatch_earnwatch_data` enthält die Datenbank **und** den
-Verschlüsselungsschlüssel (`.fernet.key`). Sichere immer beides zusammen.
-Ohne Schlüssel sind die gespeicherten Zugangsdaten nicht mehr lesbar; du müsstest sie neu eingeben.
+Honeygain und Pawns bezahlen **nur ein Gerät pro Internetanschluss**. Läuft die App schon auf deinem PC,
+nimm sie auf dem Server heraus:
 
 ```bash
-docker run --rm -v earnwatch_earnwatch_data:/d -v "$PWD":/b alpine tar czf /b/earnwatch-backup.tgz -C /d .
+cd /opt/earnwatch && sudo docker compose stop honeygain && sudo docker compose rm -f honeygain
+sudo nano .env      # in COMPOSE_PROFILES das Wort "honeygain" samt Komma löschen
 ```
 
-**Zwei-Faktor-Anmeldung (2FA):** Unter *Einstellungen → Zwei-Faktor-Anmeldung → Mit QR-Code einrichten*
-den QR-Code mit einer Authenticator-App scannen (Google/Microsoft Authenticator, Aegis, 2FAS, Bitwarden …).
-Danach wird beim Login zusätzlich ein 6-stelliger Code abgefragt. Die 8 Wiederherstellungscodes sicher aufbewahren –
-jeder funktioniert einmal, falls das Handy weg ist.
+Deine Einnahmen siehst du trotzdem weiter in EarnWatch – die werden direkt aus deinem Konto gelesen.
+</details>
 
-**Handy UND Wiederherstellungscodes verloren?** 2FA direkt auf dem Server abschalten:
+<details>
+<summary><b>Tailscale steht auf „Restarting“</b></summary>
+
+Meist ist das Gerät abgemeldet (gelöscht oder nach 180 Tagen abgelaufen). Neuen Auth-Key erzeugen
+(siehe [Tailscale](#von-unterwegs-über-tailscale)), dann `sudo bash /opt/earnwatch/install.sh` → bei Tailscale **j** →
+Schlüssel einfügen.
+</details>
+
+<details>
+<summary><b>Bytelixir: „Kontostand nicht gefunden“ oder „Sitzung abgelaufen“</b></summary>
+
+- „Sitzung abgelaufen“ → Cookies neu kopieren (siehe [Plattformen eintragen](#plattformen-eintragen)).
+- „Kontostand nicht gefunden“ → Bytelixir hat seine Seite geändert. Bitte ein Issue auf GitHub öffnen.
+</details>
+
+<details>
+<summary><b>„sudo systemctl …“ meldet „Failed to connect to bus“</b></summary>
+
+Du bist wahrscheinlich in Ubuntu unter Windows (WSL) oder in einem Container. Dann statt `systemctl`:
+
+```bash
+sudo service docker start
+```
+</details>
+
+<details>
+<summary><b>2FA-Handy und Wiederherstellungscodes verloren</b></summary>
 
 ```bash
 cd /opt/earnwatch && sudo docker compose stop earnwatch
 sudo docker run --rm -v earnwatch_earnwatch_data:/d alpine sh -c "apk add -q sqlite && sqlite3 /d/earnwatch.db 'UPDATE users SET totp_secret=NULL, recovery=NULL, session_ver=session_ver+1'"
 sudo docker compose start earnwatch
 ```
+</details>
 
-**Passwort vergessen?** Container stoppen, Datenbank-Tabelle `users` leeren, neu starten und mit dem
-Einrichtungs-Token ein neues Konto anlegen:
+<details>
+<summary><b>Passwort vergessen</b></summary>
+
+Konto zurücksetzen und mit dem Einrichtungs-Token (steht in `/opt/earnwatch/.env`) neu anlegen.
+Deine gespeicherten Daten bleiben erhalten.
 
 ```bash
-docker compose stop earnwatch
-docker run --rm -v earnwatch_earnwatch_data:/d alpine sh -c "apk add -q sqlite && sqlite3 /d/earnwatch.db 'DELETE FROM users'"
-docker compose start earnwatch
+cd /opt/earnwatch && sudo docker compose stop earnwatch
+sudo docker run --rm -v earnwatch_earnwatch_data:/d alpine sh -c "apk add -q sqlite && sqlite3 /d/earnwatch.db 'DELETE FROM users'"
+sudo docker compose start earnwatch
+```
+</details>
+
+<details>
+<summary><b>Läuft nach einem Neustart alles von selbst wieder?</b></summary>
+
+Ja. Alle Container starten von allein, auch die LAN-Sperre, Backups und Updates.
+Ausnahme: Container, die du vorher **von Hand gestoppt** hast, bleiben aus. Wieder starten mit
+`cd /opt/earnwatch && sudo docker compose up -d`. Damit die Proxmox-VM selbst hochfährt, bei ihr
+unter *Optionen* **„Start at boot“** einschalten.
+</details>
+
+---
+
+## Sicherheit
+
+EarnWatch ist von Grund auf auf Sicherheit gebaut:
+
+| | |
+|---|---|
+| **Erreichbarkeit** | Eigene IP im Heimnetz, nur **HTTPS**, nur aus privaten Netzen. Von unterwegs nur über Tailscale – nie offen im Internet |
+| **Login** | Passwort-Hash mit scrypt, Sperre nach 5 Fehlversuchen (pro IP **und** pro Benutzer), optional **2FA** oder **Passkey/Face ID** |
+| **Zugangsdaten** | Verschlüsselt gespeichert, werden **nie** wieder angezeigt oder ins Log geschrieben |
+| **Web-Schutz** | Jedes Formular braucht einen geheimen Schlüssel (CSRF) und wird auf Herkunft geprüft. Strenge CSP: **kein JavaScript** auf den Seiten (einzige Ausnahme: die eigene Passkey-Datei auf Login- und Einstellungsseite) |
+| **Container** | EarnWatch läuft ohne Root-Rechte, mit schreibgeschütztem Dateisystem und **ohne Zugriff auf Docker** |
+| **Earn-Apps** | Laufen in einem eigenen Netz und dürfen per **LAN-Sperre** nicht in dein Heimnetz |
+| **Ersteinrichtung** | Das erste Konto lässt sich nur mit dem geheimen Einrichtungs-Token anlegen |
+
+**Zertifikatswarnung dauerhaft loswerden:** Das Stammzertifikat von EarnWatch einmal auf deinen Geräten installieren:
+
+```bash
+cd /opt/earnwatch && sudo docker compose exec caddy cat /data/caddy/pki/authorities/local/root.crt > earnwatch-root.crt
 ```
 
-## Aufbau
+Die Datei auf PC/Mac/Handy kopieren und als vertrauenswürdige Stammzertifizierungsstelle importieren
+(Windows: Doppelklick → „Vertrauenswürdige Stammzertifizierungsstellen“, Mac: Schlüsselbund → „Immer vertrauen“).
+
+> Die Tokens von Grass, EarnApp und Bytelixir sind Login-Schlüssel – wer sie hat, kommt in dein Konto.
+> Gib sie nie weiter.
+
+---
+
+## Aufbau des Projekts
 
 ```
 earnwatch/
-├── docker-compose.yml   # App + Caddy (HTTPS, eigene IP) + optionale Earn-Apps
-├── Caddyfile            # HTTPS mit lokalem Zertifikat, nur private Netze erlaubt
+├── install.sh            # Einrichtung (Fragen beantworten, fertig)
+├── update.sh             # Update (mit Backup vorher)
+├── backup.sh / restore.sh
+├── zugangsdaten.sh       # Logins der Earn-App-Container neu eintragen und prüfen
+├── healthcheck.sh        # Container-Wächter (läuft alle 5 Min.)
+├── lan-guard.sh          # LAN-Sperre für die Earn-Apps
+├── docker-compose.yml    # EarnWatch + Caddy (HTTPS) + Tailscale + Earn-Apps
+├── Caddyfile
 ├── .env.example
-└── app/
-    ├── Dockerfile
-    ├── requirements.txt
-    └── earnwatch/       # Python-App (Starlette)
-        ├── main.py        # Routen, Login, Sicherheits-Header, Zeitplan
-        ├── auth.py        # scrypt, Login-Sperre, CSRF
-        ├── collectors.py  # Abruf Honeygain / EarnApp
-        ├── crypto.py      # Verschlüsselung der Zugangsdaten
-        ├── db.py, stats.py, charts.py
-        ├── templates/ static/
+├── docs/screenshots/     # Bilder dieser Anleitung
+└── app/earnwatch/        # Python-App (Starlette)
+    ├── main.py           # Seiten, Login, Sicherheit, Zeitplan
+    ├── collectors.py     # Abruf der Plattformen
+    ├── stats.py, charts.py
+    ├── webauthn.py       # Face ID / Passkey
+    ├── notify.py, events.py
+    └── templates/ static/
 ```
 
-Weitere Anbieter lassen sich in `collectors.py` ergänzen (Eintrag in `PLATFORMS` + Abruf-Funktion).
-
-## Schriften
-
-Die Oberfläche nutzt **Sora** und **JetBrains Mono** (beide SIL Open Font License, Lizenzen in
-`app/earnwatch/static/fonts/`). Sie werden lokal ausgeliefert – es wird nichts von Google nachgeladen.
+Die Schriften **Sora** und **JetBrains Mono** stehen unter der SIL Open Font License
+(Lizenzen in `app/earnwatch/static/fonts/`) und werden lokal ausgeliefert – es wird nichts von außen nachgeladen.
