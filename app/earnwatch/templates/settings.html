@@ -10,6 +10,18 @@
   </div>
 </header>
 
+{% if mirror %}
+<section class="card setcard mirrorbanner">
+  <header><h2>Nur-Lese-Spiegel</h2>{% if mirror_err %}<span class="pill err">Fehler</span>{% else %}<span class="pill ok">verbunden</span>{% endif %}</header>
+  <p class="muted small">Diese Installation zeigt die Daten von <b class="mono">{{ mirror.u }}</b>. Zugänge, Abrufe und Benachrichtigungen laufen dort.
+    {% if mirror_ok %}Zuletzt aktualisiert {{ mirror_ok|ago }}.{% endif %}</p>
+  {% if mirror_err %}<div class="flash err">{{ mirror_err }}</div>{% endif %}
+  <div class="actions">
+    <form method="post" action="/collect"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="back" value="/settings"><button class="btn primary sm">Jetzt aktualisieren</button></form>
+    <a class="btn sm" href="#mirror">Spiegel-Einstellungen</a>
+  </div>
+</section>
+{% else %}
 <section>
   <div class="cardhead sectionhead"><h2>Plattformen</h2><span class="small muted">Zum Ändern einfach neu eingeben</span></div>
   <div class="grid3">
@@ -65,6 +77,7 @@
   {% endfor %}
   </div>
 </section>
+{% endif %}
 
 <div class="grid2">
 <section class="card setcard">
@@ -181,6 +194,43 @@
   <p class="hint">Das Backup-Passwort gut merken – ohne kann niemand die Datei öffnen, auch du nicht.</p>
 </section>
 </div>
+
+<section class="card setcard" id="mirror">
+  <header><h2>Spiegel (andere Installation anzeigen)</h2>
+    {% if mirror %}<span class="pill ok">dies ist ein Spiegel</span>{% elif msrc.active %}<span class="pill ok">freigegeben</span>{% endif %}</header>
+  {% if mirror %}
+  <p class="muted small">Daten kommen von <b class="mono">{{ mirror.u }}</b> – verschlüsselt und signiert, alle 10 Minuten. Trennen löscht hier nur die gespiegelten Werte.</p>
+  <form method="post" action="/settings/mirror_off"><input type="hidden" name="csrf" value="{{ csrf }}">
+    <button class="btn danger sm">Spiegel trennen</button></form>
+  {% else %}
+  <div class="grid2 tight">
+    <div>
+      <h3 class="subh">Hier sammeln, woanders anzeigen</h3>
+      <p class="muted small">Erstellt einen Spiegel-Link für z.&nbsp;B. Umbrel. Der Spiegel kann nur Kontostände lesen – keine Zugangsdaten, kein Login, keine Änderungen.</p>
+      {% if msrc.active %}<p class="small">Schlüssel seit {{ msrc.created|dtfmt }}{% if msrc.last_seen %} · zuletzt abgeholt {{ msrc.last_seen|ago }}{% else %} · noch nie abgeholt{% endif %}</p>{% endif %}
+      <form method="post" action="/settings/mirror_src">
+        <input type="hidden" name="csrf" value="{{ csrf }}">
+        <label>Dein EarnWatch-Passwort<input name="password" type="password" required maxlength="256" autocomplete="current-password"></label>
+        <button class="btn primary sm">{{ 'Neuen Spiegel-Link erstellen' if msrc.active else 'Spiegel-Link erstellen' }}</button>
+      </form>
+      {% if msrc.active %}<form method="post" action="/settings/mirror_src" class="delform"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="delete">
+        <button class="btn danger sm">Spiegel-Schlüssel löschen</button></form>{% endif %}
+    </div>
+    <div>
+      <h3 class="subh">Diese Installation als Spiegel nutzen</h3>
+      <p class="muted small">Link aus dem Original hier einfügen. Danach ruft diese Installation <b>nichts mehr selbst</b> ab und zeigt nur noch die Daten des Originals.</p>
+      <form method="post" action="/settings/mirror_on" autocomplete="off">
+        <input type="hidden" name="csrf" value="{{ csrf }}">
+        <label>Spiegel-Link<input name="link" required maxlength="2000" spellcheck="false" class="mono" placeholder="ewmirror1:…"></label>
+        <label>Adresse des Originals (nur falls anders als im Link)<input name="url" maxlength="300" spellcheck="false" class="mono" placeholder="https://192.168.1.50"></label>
+        {% if configured.keys()|reject('equalto','_notify')|reject('equalto','_mirror_src')|list %}<label class="check"><input type="checkbox" name="confirm" value="1"> Eigene Zugänge hier löschen und zum Spiegel machen</label>{% endif %}
+        <label>Dein EarnWatch-Passwort<input name="password" type="password" required maxlength="256" autocomplete="current-password"></label>
+        <button class="btn primary sm">Als Spiegel verbinden</button>
+      </form>
+    </div>
+  </div>
+  {% endif %}
+</section>
 
 <section class="card setcard" id="notify">
   <header>

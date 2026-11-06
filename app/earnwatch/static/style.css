@@ -789,3 +789,9 @@ input[type=file].fileinput{padding:10px;font-size:13px;cursor:pointer}
 input[type=file].fileinput::file-selector-button{margin-right:10px;padding:7px 14px;border-radius:var(--pill);border:1px solid var(--line);
   background:var(--glass-2);color:var(--text);font:inherit;font-weight:600;cursor:pointer}
 .authcard .hint{font-size:12px;color:var(--muted);line-height:1.45}
+.subh{margin:0 0 6px;font-size:14px;font-weight:650}
+.grid2.tight{gap:22px;margin:0}
+.grid2.tight > div{display:flex;flex-direction:column;gap:10px;min-width:0}
+.grid2.tight form{display:flex;flex-direction:column;gap:10px}
+.mirrorbanner .actions{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.mirrorbanner .actions form{margin:0}

@@ -239,9 +239,26 @@ def load_credentials(platform: str) -> dict | None:
     return crypto.decrypt(row["blob"]) if row else None
 
 
-def configured_platforms() -> dict[str, int]:
+def is_mirror() -> bool:
+    """True, wenn diese Installation nur ein Nur-Lese-Spiegel einer anderen ist."""
+    with conn() as c:
+        return c.execute("SELECT 1 FROM credentials WHERE platform='_mirror'").fetchone() is not None
+
+
+def own_platforms() -> dict[str, int]:
     with conn() as c:
         return {r["platform"]: r["updated"] for r in c.execute("SELECT platform, updated FROM credentials")}
+
+
+def configured_platforms() -> dict[str, int]:
+    if is_mirror():   # im Spiegel kommen die eingerichteten Plattformen von der Quelle
+        import json
+        try:
+            d = json.loads(get_setting("mirror_configured", "{}"))
+            return {str(k): int(v) for k, v in d.items()} if isinstance(d, dict) else {}
+        except (ValueError, TypeError):
+            return {}
+    return own_platforms()
 
 
 def delete_credentials(platform: str) -> None:

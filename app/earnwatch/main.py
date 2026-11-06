@@ -29,7 +29,7 @@ from starlette.staticfiles import StaticFiles
 from starlette.templating import Jinja2Templates
 from markupsafe import Markup
 
-from . import achievements, auth, backup, webauthn, charts, config, db, events, fx, notify, stats, totp
+from . import achievements, auth, backup, mirror, webauthn, charts, config, db, events, fx, notify, stats, totp
 from .collectors import PLATFORMS
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -187,7 +187,7 @@ def render(request: Request, name: str, ctx: dict | None = None, status: int = 2
         interval = max(15, int(db.get_setting("interval_min", str(config.INTERVAL_MIN_DEFAULT))))
         last = int(db.get_setting("last_collect_ts", "0") or 0)
         nxt = max(0, int((last + interval * 60 - time.time()) / 60)) if last else None
-        ctx["status"] = {"interval": interval, "next_in": nxt,
+        ctx["status"] = {"interval": interval, "next_in": nxt, "mirror": db.is_mirror(),
                          "frac": round(1 - nxt / interval, 3) if nxt is not None else 0}
         try:
             ct = json.loads(db.get_setting("containers", "{}"))
@@ -259,6 +259,12 @@ def forbidden():
 # --------------------------------------------------------------------------
 async def collect_all() -> list:
     results = []
+    if db.is_mirror():   # Spiegel: nichts selbst abrufen, nur vom Original holen
+        async with _collect_lock:
+            err = await run_in_threadpool(mirror.sync)
+        if err:
+            log.warning("Spiegel: %s", err)
+        return results
     async with _collect_lock:
         db.set_setting("last_collect_ts", str(int(time.time())))
         runs_before = db.last_runs()
@@ -314,7 +320,7 @@ async def scheduler():
             await collect_all()
         except Exception:
             log.exception("Fehler im Abruf-Zyklus")
-        minutes = max(15, int(db.get_setting("interval_min", str(config.INTERVAL_MIN_DEFAULT))))
+        minutes = 10 if db.is_mirror() else max(15, int(db.get_setting("interval_min", str(config.INTERVAL_MIN_DEFAULT))))
         await asyncio.sleep(minutes * 60)
 
 
@@ -678,6 +684,12 @@ _bg_tasks: set = set()
 async def _manual_collect():
     """Läuft im Hintergrund – die Seite muss nicht 30 Sekunden auf alle Anbieter warten."""
     try:
+        if db.is_mirror():
+            async with _collect_lock:
+                err = await run_in_threadpool(mirror.sync)
+            msg, kind = (f"Spiegel: {err}", "err") if err else ("Vom Original aktualisiert.", "ok")
+            db.set_setting("manual_result", json.dumps({"ts": time.time(), "msg": msg[:400], "kind": kind}))
+            return
         results = await collect_all()
         if not results:
             msg, kind = "Noch keine Zugangsdaten hinterlegt – siehe Einstellungen.", "warn"
@@ -695,6 +707,8 @@ def _back_target(form) -> str:
     """Nur feste, eigene Ziele erlauben (keine offene Weiterleitung)."""
     back = form.get("back") or "/"
     if back.startswith("/p/") and back[3:] in PLATFORMS:
+        return back
+    if back == "/settings":
         return back
     return "/"
 
@@ -842,6 +856,57 @@ async def collect_now(request: Request):
     return redirect(target)
 
 
+async def _mirror_settings(request: Request, user, form, what: str):
+    action = form.get("action", "")
+    if what == "mirror_src" and action == "delete":
+        mirror.revoke_source()
+        flash(request, "Spiegel-Schlüssel gelöscht – der Spiegel bekommt keine Daten mehr.")
+        return redirect("/settings#mirror")
+    if what == "mirror_off":
+        mirror.disable()
+        flash(request, "Spiegel getrennt. Diese Installation ist jetzt wieder eigenständig.")
+        return redirect("/settings#mirror")
+    if wait := auth.throttle.try_acquire(f"mirror:{user['id']}", global_=False):
+        flash(request, f"Zu viele Versuche. Bitte {wait//60+1} Min. warten.", "err")
+        return redirect("/settings#mirror")
+    if not await run_in_threadpool(auth.verify_password, form.get("password", ""), user["pw_hash"]):
+        flash(request, "Dein EarnWatch-Passwort ist falsch.", "err")
+        return redirect("/settings#mirror")
+    auth.throttle.success(f"mirror:{user['id']}")
+    if what == "mirror_src":
+        proto = (request.headers.get("x-forwarded-proto") or request.url.scheme or "https").split(",")[0].strip()
+        host = request.headers.get("x-forwarded-host") or request.headers.get("host") or ""
+        link = mirror.create_source_link(f"{'https' if proto == 'https' else 'http'}://{host}")
+        notify.send("security", "🪞 Spiegel-Schlüssel erstellt",
+                    f"{user['username']} hat einen Spiegel-Link erstellt. Damit kann eine andere EarnWatch-Installation deine Kontostände lesen.",
+                    priority=3, tags=["mirror"])
+        log.info("Spiegel-Link erstellt von '%s'", user["username"])
+        return render(request, "mirror_link.html", {"user": user, "link": link, "base": f"{host}"})
+    # mirror_on
+    try:
+        url, key = mirror.parse_link(form.get("link", ""))
+        if form.get("url", "").strip():
+            url = mirror.check_url(form.get("url", ""))
+    except mirror.MirrorError as e:
+        flash(request, str(e), "err")
+        return redirect("/settings#mirror")
+    if db.own_platforms().keys() - {"_notify"}:
+        if form.get("confirm") != "1":
+            flash(request, "Hier sind noch eigene Zugänge gespeichert. Bitte bestätigen, dass dieser EarnWatch zum Spiegel wird.", "warn")
+            return redirect("/settings#mirror")
+        for pf in list(db.own_platforms()):
+            if not pf.startswith("_"):
+                db.delete_credentials(pf)
+    await run_in_threadpool(mirror.enable, url, key)
+    async with _collect_lock:
+        err = await run_in_threadpool(mirror.sync)
+    if err:
+        flash(request, f"Spiegel eingerichtet, aber: {err}", "warn")
+    else:
+        flash(request, "Spiegel aktiv – Daten vom Original geladen. Aktualisiert sich alle 10 Minuten.")
+    return redirect("/settings#mirror")
+
+
 async def settings_page(request: Request):
     user = current_user(request)
     if not user:
@@ -867,6 +932,10 @@ async def settings_page(request: Request):
         "theme": db.get_setting("theme", "auto"),
         "eur_rate": float(db.get_setting("eur_rate", "0") or 0),
         "eur_rate_ts": int(db.get_setting("eur_rate_ts", "0") or 0),
+        "mirror": mirror.mirror_config(),
+        "mirror_ok": int(db.get_setting("mirror_last_ok", "0") or 0),
+        "mirror_err": db.get_setting("mirror_error", ""),
+        "msrc": mirror.source_info(),
     })
 
 
@@ -878,6 +947,11 @@ async def settings_save(request: Request):
     if form is None:
         return forbidden()
     what = request.path_params["what"]
+    if db.is_mirror() and (what in PLATFORMS or what in ("delete", "history", "mirror_src")):
+        flash(request, "Das ist ein Nur-Lese-Spiegel – Zugänge bitte im Original ändern.", "warn")
+        return redirect("/settings")
+    if what in ("mirror_src", "mirror_on", "mirror_off"):
+        return await _mirror_settings(request, user, form, what)
     if what == "notify":
         cfg, err = notify.validate(form)
         if err:
@@ -1125,6 +1199,19 @@ async def api_widget(request: Request):
     })
 
 
+async def api_mirror(request: Request):
+    """Liefert dem Spiegel die Anzeige-Daten – signierte Anfrage, verschlüsselte Antwort, keine Zugangsdaten."""
+    key = f"api:{client_ip(request)}"
+    if wait := _api_throttle.blocked(key):
+        return JSONResponse({"error": "zu viele Versuche"}, status_code=429, headers={"retry-after": str(wait)})
+    chk = mirror.check_request(request.headers)
+    if chk is None:
+        _api_throttle.fail(key)
+        return JSONResponse({"error": "abgelehnt"}, status_code=401)
+    body = await run_in_threadpool(mirror.build_response, *chk)
+    return Response(body, media_type="application/octet-stream", headers={"cache-control": "no-store"})
+
+
 async def healthz(request: Request):
     return PlainTextResponse("ok")
 
@@ -1169,6 +1256,7 @@ routes = [
     Route("/healthz", healthz),
     Route("/live.css", live_css),
     Route("/api/widget", api_widget),
+    Route("/api/mirror", api_mirror),
     Mount("/static", StaticFiles(directory=str(BASE / "static")), name="static"),
 ]
 

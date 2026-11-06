@@ -46,7 +46,7 @@
       </form>
     </div>
     <div class="status">
-      <div class="row1"><span class="livedot"></span>Abruf aktiv · alle {{ status.interval }} Min</div>
+      <div class="row1"><span class="livedot"></span>{% if status.mirror %}Spiegel · Original alle {{ status.interval }} Min{% else %}Abruf aktiv · alle {{ status.interval }} Min{% endif %}</div>
       <progress max="1" value="{{ status.frac }}" aria-label="Zeit bis zum nächsten Abruf"></progress>
       {% if status.containers %}<div class="row1 ctrow" title="{{ status.containers.down|join(', ') }}"><span class="livedot{{ '' if status.containers.up == status.containers.total else ' bad' }}"></span>Container: {{ status.containers.up }} / {{ status.containers.total }} laufen</div>{% endif %}
       <span class="small muted">{% if status.next_in is none %}Erster Abruf läuft gleich{% elif status.next_in < 1 %}Nächster Abruf gleich{% else %}Nächster Abruf in {{ status.next_in }} Min{% endif %}</span>

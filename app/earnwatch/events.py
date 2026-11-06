@@ -93,6 +93,8 @@ def check_expiry() -> None:
     """Warnt 3 Tage vorher, wenn ein kopierter Login-Token (z. B. Grass) abläuft – einmal pro Token."""
     import time
     from .collectors import PLATFORMS
+    if db.is_mirror():   # warnt schon die Quelle
+        return
     for pf in db.configured_platforms():
         try:
             exp = int(db.get_setting(f"cred_exp_{pf}", "") or 0)
@@ -112,7 +114,7 @@ def check_expiry() -> None:
 
 def scan_expiry() -> None:
     """Beim Start einmal alle gespeicherten Zugänge auf Ablaufdatum prüfen (für ältere Einträge)."""
-    for pf in db.configured_platforms():
+    for pf in db.own_platforms():
         try:
             db.remember_expiry(pf, db.load_credentials(pf) or {})
         except Exception:

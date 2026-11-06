@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Spiegel-Link · EarnWatch{% endblock %}
+{% block content %}
+<header class="pagehead"><div><div class="date"><a href="/settings#mirror">‹ Einstellungen</a></div><h1>Spiegel-Link</h1></div></header>
+<section class="card setcard">
+  <div class="flash warn">Dieser Link wird <b>nur jetzt</b> angezeigt. Er erlaubt nur das Lesen deiner Kontostände – keine Zugangsdaten, kein Login, keine Änderungen. Wie ein Passwort behandeln.</div>
+  <ol class="howto big">
+    <li>Link unten komplett kopieren.</li>
+    <li>Im Spiegel (z.&nbsp;B. EarnWatch auf Umbrel): <b>Einstellungen → Spiegel → „Diese Installation als Spiegel nutzen“</b> → einfügen → verbinden.</li>
+    <li>Der Spiegel holt die Daten von <b class="mono">{{ base }}</b>. Falls Umbrel das Original unter einer anderen Adresse erreicht, dort zusätzlich die Adresse eintragen.</li>
+  </ol>
+  <label>Spiegel-Link<textarea class="code" readonly rows="4" spellcheck="false">{{ link }}</textarea></label>
+  <p class="hint">Neuer Link = alter Link funktioniert nicht mehr. Löschen geht jederzeit unter Einstellungen → Spiegel.</p>
+</section>
+{% endblock %}
