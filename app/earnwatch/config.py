@@ -17,6 +17,9 @@ INTERVAL_MIN_DEFAULT = int(os.environ.get("EW_INTERVAL_MIN", "60"))
 SESSION_HOURS = int(os.environ.get("EW_SESSION_HOURS", "12"))
 REMEMBER_DAYS = int(os.environ.get("EW_REMEMBER_DAYS", "30"))  # "Angemeldet bleiben"
 TZ = os.environ.get("TZ", "Europe/Berlin")
+# Betrieb als Umbrel-App: Umbrels eigener Login (app_proxy) schützt die App bereits,
+# die Adresse (umbrel.local:Port, IP:Port, Tailscale-Name) ist vorher nicht bekannt.
+UMBREL = os.environ.get("EW_PLATFORM", "").lower() == "umbrel"
 
 
 def _read_secret(env_name: str) -> str | None:

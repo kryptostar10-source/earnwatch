@@ -1,0 +1,30 @@
+version: "3.7"
+
+services:
+  app_proxy:
+    environment:
+      # Format: <app-id>_<dienst>_1
+      APP_HOST: kryptostar-earnwatch_web_1
+      APP_PORT: 8080
+      # Umbrels Login schützt die App. Nur das iPhone-Widget (eigener Nur-Lese-Schlüssel) darf ohne.
+      PROXY_AUTH_WHITELIST: "/api/*"
+
+  web:
+    image: ghcr.io/kryptostar10-source/earnwatch:latest
+    user: "1000:1000"
+    init: true
+    restart: on-failure
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      EW_PLATFORM: umbrel
+      # Umbrel läuft im Heimnetz über http – sonst würde der Browser das Anmelde-Cookie nicht speichern
+      EW_SECURE_COOKIES: "false"
+      TZ: Europe/Berlin
+    volumes:
+      - ${APP_DATA_DIR}/data:/data

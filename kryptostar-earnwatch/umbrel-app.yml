@@ -1,0 +1,40 @@
+manifestVersion: 1
+id: kryptostar-earnwatch
+name: EarnWatch
+tagline: All your passive income apps in one secure dashboard
+icon: https://raw.githubusercontent.com/kryptostar10-source/earnwatch/main/docs/umbrel/icon.svg
+category: finance
+version: "1.0.0"
+port: 3925
+description: >-
+  EarnWatch tracks your balances on Honeygain (incl. JumpTask), EarnApp, Grass, Bytelixir,
+  Pawns.app, Earn.fm, Wipter and Duino-Coin and shows what you earn today, this week,
+  this month and this year.
+
+
+  Features: charts by day/week/month/year, a page for every platform, devices online,
+  payout detection, "your year" calendar, achievements, four styles (Liquid Glass, Dot,
+  Frost, Peach), light/dark mode, euro conversion, phone notifications via ntfy or Telegram,
+  an iPhone widget and two-factor login.
+
+
+  Your logins are stored encrypted and never shown again. The app has no access to Docker
+  and runs without root rights. The user interface is in German.
+developer: kryptostar10-source
+website: https://github.com/kryptostar10-source/earnwatch
+submitter: kryptostar10-source
+submission: https://github.com/kryptostar10-source/earnwatch
+repo: https://github.com/kryptostar10-source/earnwatch
+support: https://github.com/kryptostar10-source/earnwatch/issues
+gallery:
+  - https://raw.githubusercontent.com/kryptostar10-source/earnwatch/main/docs/screenshots/uebersicht-liquid-glass.jpg
+  - https://raw.githubusercontent.com/kryptostar10-source/earnwatch/main/docs/screenshots/uebersicht-frost.jpg
+  - https://raw.githubusercontent.com/kryptostar10-source/earnwatch/main/docs/screenshots/uebersicht-peach.jpg
+  - https://raw.githubusercontent.com/kryptostar10-source/earnwatch/main/docs/screenshots/uebersicht-dot.jpg
+  - https://raw.githubusercontent.com/kryptostar10-source/earnwatch/main/docs/screenshots/plattform-seite.jpg
+releaseNotes: >-
+  First Umbrel release.
+dependencies: []
+path: ""
+defaultUsername: ""
+defaultPassword: ""

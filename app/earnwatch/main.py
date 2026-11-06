@@ -41,6 +41,7 @@ BASE = Path(__file__).parent
 templates = Jinja2Templates(directory=str(BASE / "templates"))
 templates.env.globals["money"] = charts.money
 templates.env.globals["amount"] = charts.amount
+templates.env.globals["umbrel"] = config.UMBREL
 templates.env.globals["cur_label"] = lambda: "Euro" if charts.currency()[0] == "EUR" else "USD"
 
 
@@ -218,15 +219,30 @@ def redirect(path: str) -> RedirectResponse:
     return RedirectResponse(path, status_code=303)
 
 
+def _origin_ok(request: Request, origin: str) -> bool:
+    """Herkunft prüfen. Hinter Caddy/Tailscale steht der echte Name ggf. in X-Forwarded-Host.
+    Auf Umbrel schreibt Umbrels Proxy den Host um und der Gerätename ist vorher unbekannt.
+    Dort muss die Herkunft denselben Port haben wie die App (X-Forwarded-Port vom Umbrel-Proxy).
+    Die eigentliche Absicherung bleibt in jedem Fall das CSRF-Token + SameSite-Cookie."""
+    hosts = {request.headers.get("host"), request.headers.get("x-forwarded-host")}
+    o = urlparse(origin)
+    if o.netloc in hosts:
+        return True
+    if config.UMBREL and o.scheme in ("http", "https") and o.hostname:
+        fport = (request.headers.get("x-forwarded-port") or "").split(",")[0].strip()
+        try:
+            oport = str(o.port or (443 if o.scheme == "https" else 80))
+        except ValueError:
+            return False
+        return not fport or fport == oport
+    return False
+
+
 async def checked_form(request: Request):
     """Formular lesen + CSRF-Token und Origin prüfen. Gibt None bei Angriff zurück."""
     origin = request.headers.get("origin")
-    if origin and origin != "null":
-        # Hinter einem Proxy (Caddy, Tailscale) steht der echte Name ggf. in X-Forwarded-Host.
-        # Ein Angreifer-Formular kann keine eigenen Header setzen – das bleibt sicher.
-        hosts = {request.headers.get("host"), request.headers.get("x-forwarded-host")}
-        if urlparse(origin).netloc not in hosts:
-            return None
+    if origin and origin != "null" and not _origin_ok(request, origin):
+        return None
     form = await request.form(max_files=0, max_fields=20, max_part_size=8192)
     if not auth.csrf_ok(request.session, form.get("csrf")):
         return None
@@ -322,7 +338,7 @@ async def setup(request: Request):
         token = form.get("token", "")
         username = form.get("username", "").strip()
         pw, pw2 = form.get("password", ""), form.get("password2", "")
-        if not hmac.compare_digest(token.encode(), config.setup_token().encode()):
+        if not config.UMBREL and not hmac.compare_digest(token.encode(), config.setup_token().encode()):
             error = "Einrichtungs-Token ist falsch."
         elif not (3 <= len(username) <= 32 and username.isalnum()):
             error = "Benutzername: 3–32 Buchstaben/Ziffern."
@@ -659,8 +675,7 @@ async def _checked_json(request: Request) -> dict | None:
     if not request.headers.get("content-type", "").startswith("application/json"):
         return None
     origin = request.headers.get("origin")
-    hosts = {request.headers.get("host"), request.headers.get("x-forwarded-host")}
-    if not origin or urlparse(origin).netloc not in hosts:
+    if not origin or not _origin_ok(request, origin):
         return None
     if not auth.csrf_ok(request.session, request.headers.get("x-csrf-token")):
         return None

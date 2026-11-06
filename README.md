@@ -18,17 +18,18 @@ on your PC, on your iPhone and, if you like, on the go.
 1. [Preview](#preview)
 2. [Features](#features)
 3. [Requirements](#requirements)
-4. [Installation step by step](#installation-step-by-step)
-5. [First login](#first-login)
-6. [Adding your platforms](#adding-your-platforms)
-7. [Choosing a style](#choosing-a-style)
-8. [Using it on your iPhone](#using-it-on-your-iphone)
-9. [Remote access with Tailscale](#remote-access-with-tailscale)
-10. [Phone notifications](#phone-notifications)
-11. [Updates & backups](#updates--backups)
-12. [Troubleshooting](#troubleshooting)
-13. [Security](#security)
-14. [Project structure](#project-structure)
+4. [Install on Umbrel](#install-on-umbrel)
+5. [Installation step by step](#installation-step-by-step)
+6. [First login](#first-login)
+7. [Adding your platforms](#adding-your-platforms)
+8. [Choosing a style](#choosing-a-style)
+9. [Using it on your iPhone](#using-it-on-your-iphone)
+10. [Remote access with Tailscale](#remote-access-with-tailscale)
+11. [Phone notifications](#phone-notifications)
+12. [Updates & backups](#updates--backups)
+13. [Troubleshooting](#troubleshooting)
+14. [Security](#security)
+15. [Project structure](#project-structure)
 
 ---
 
@@ -134,6 +135,28 @@ curl -fsSL https://get.docker.com | sudo sh
 ```
 
 Check: `sudo docker compose version` should print a version number.
+
+---
+
+## Install on Umbrel
+
+EarnWatch is also available as an app for **umbrelOS** through its own community app store.
+
+1. In Umbrel open the **App Store** → click **"⋯"** (top right) → **Community App Stores**.
+2. Paste this link and click **Add**:
+   ```
+   https://github.com/kryptostar10-source/earnwatch
+   ```
+3. Open the new **"Kryptostar App Store"** → **EarnWatch** → **Install**.
+4. Open EarnWatch from your Umbrel home screen and create your account (no setup token needed –
+   your Umbrel login already protects the app).
+
+Then continue with [Adding your platforms](#adding-your-platforms).
+
+**Differences to the server version:** Umbrel takes care of updates and backups. The earning-app containers,
+LAN lock and container watchdog are not included (install earning apps from the Umbrel App Store if available).
+Face ID / passkeys need HTTPS and therefore don't work on Umbrel's local address. For remote access use the
+Tailscale app from the Umbrel App Store. Runs on Umbrel Home and Raspberry Pi (Intel/AMD and ARM).
 
 ---
 
@@ -507,6 +530,8 @@ earnwatch/
 ├── docker-compose.yml    # EarnWatch + Caddy (HTTPS) + Tailscale + earning apps
 ├── Caddyfile
 ├── .env.example
+├── umbrel-app-store.yml  # Umbrel community app store
+├── kryptostar-earnwatch/ # the Umbrel app (manifest + compose)
 ├── docs/screenshots/     # images in this guide
 └── app/earnwatch/        # Python app (Starlette)
     ├── main.py           # pages, login, security, scheduler
