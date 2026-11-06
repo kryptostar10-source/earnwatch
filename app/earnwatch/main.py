@@ -163,8 +163,11 @@ def render(request: Request, name: str, ctx: dict | None = None, status: int = 2
     ctx["csrf"] = auth.csrf_token(request.session)
     ctx.setdefault("user", None)
     ctx["flash"] = request.session.pop("flash", None)
-    ctx["theme"] = db.get_setting("theme", "auto") if db.user_count() else "auto"
-    ctx["ui_style"] = db.get_setting("ui_style", "glass") if db.user_count() else "glass"
+    # Nur bekannte Werte durchlassen – auch wenn jemand die Datenbank direkt verändert hätte
+    theme = db.get_setting("theme", "auto") if db.user_count() else "auto"
+    ui_style = db.get_setting("ui_style", "glass") if db.user_count() else "glass"
+    ctx["theme"] = theme if theme in ("auto", "dark", "light") else "auto"
+    ctx["ui_style"] = ui_style if ui_style in ("glass", "nothing", "frost") else "glass"
     if ctx["user"] and name in ("dashboard.html", "platform.html"):
         running = _collect_lock.locked() or any(not t.done() for t in _bg_tasks)
         waiting = request.session.get("await_collect")
@@ -558,6 +561,8 @@ async def dashboard(request: Request):
         "heat_svg": charts.heatmap(data["heat"]),
         "hero_svg": charts.hero_spark(data["hero_spark"]),
         "share_svg": charts.share_bar(data["share"]),
+        "donut_svg": charts.donut(data["share"], "gesamt"),
+        "donut_legend": charts.donut_legend(data["share"]),
         "miners_svg": charts.miners(duino["info"].get("rigs", [])) if duino and duino["configured"] else None,
         "duino": duino,
         "sparks": {p["id"]: charts.spark(p["spark"], p["color"]) for p in data["platforms"]},
@@ -902,7 +907,7 @@ async def settings_save(request: Request):
             if theme not in ("auto", "dark", "light"):
                 raise ValueError
             style = form.get("style", "glass")
-            if style not in ("glass", "nothing"):
+            if style not in ("glass", "nothing", "frost"):
                 raise ValueError
             db.set_setting("theme", theme)
             db.set_setting("ui_style", style)

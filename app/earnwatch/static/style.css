@@ -528,3 +528,99 @@ textarea.code{display:block;width:100%;margin-top:6px;padding:14px;border:1px so
 [data-style=nothing] .kpi[aria-current=page]{background:var(--glass-3)}
 [data-style=nothing] .ach.got .achicon,[data-style=nothing] .achmini.got{
   background:var(--err-bg);border-color:var(--accent);box-shadow:none}
+
+/* ---------- Neue Bausteine (in allen Stilen vorhanden, standardmäßig versteckt) ---------- */
+.donutbox,.kicon,.kchg{display:none}
+.khead{display:flex;align-items:center;gap:8px}
+.donut{width:190px;height:190px;flex:none}
+.donut .dtrack{stroke:var(--track)}
+.donut .dsub{fill:var(--muted);font-size:12px;font-family:var(--sans)}
+.donut .dval{fill:var(--text);font-size:21px;font-weight:700;font-family:var(--num);letter-spacing:-.02em}
+.dlegend{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:9px;flex:1;min-width:180px}
+.dlegend li{display:grid;grid-template-columns:10px minmax(70px,auto) 1fr 40px;align-items:center;gap:10px;font-size:12px;color:var(--soft)}
+.ddot{width:10px;height:10px}
+.dbar{width:100%;height:6px;display:block}
+.dtrackbar{fill:var(--track)}
+.dpct{font-family:var(--num);font-size:12px;text-align:right;color:var(--text)}
+
+/* ======================================================================
+   Stil "Frost": helles Milchglas über warmem, unscharfem Raum-Hintergrund,
+   schwebende Icon-Leiste, dunkle Auswahl-Pillen, Ring-Diagramm, Prozent-Badges.
+   Immer hell (das Milchglas lebt vom hellen Hintergrund).
+   ====================================================================== */
+:root[data-style=frost]{
+  --bg:#d6c6b0;
+  --text:#1c1a17;--soft:rgba(28,26,23,.8);--muted:rgba(28,26,23,.58);--faint:rgba(28,26,23,.42);
+  --glass:rgba(255,255,255,.34);--glass-2:rgba(255,255,255,.48);--glass-3:rgba(255,255,255,.72);
+  --edge:rgba(255,255,255,.62);--edge-hi:rgba(255,255,255,.9);--line:rgba(28,26,23,.08);--track:rgba(28,26,23,.1);
+  --accent:#1c1c1e;--accent-hi:#000;--ink:#fff;
+  --ok:#17803f;--ok-bg:rgba(52,199,89,.2);--err:#c0352a;--err-bg:rgba(255,69,58,.16);--warn:#8f5c00;--warn-bg:rgba(255,159,10,.2);
+  --blur:saturate(150%) blur(26px);
+  --shadow:0 20px 50px rgba(70,45,20,.16),0 2px 6px rgba(70,45,20,.08);
+  --field:rgba(255,255,255,.6);--gridc:rgba(28,26,23,.08);--hover:rgba(28,26,23,.05);--avg:rgba(28,26,23,.45);
+  --seg-on:#1c1c1e;--seg-on-ink:#fff;--link:#1c1c1e;--link-hi:#000;
+  --mobile-bar:rgba(238,229,217,.82);--tabbar:rgba(250,246,240,.78);--solid:#f4eee6;--hm0:rgba(28,26,23,.07);
+  --heatc:#e5603b;
+  color-scheme:light;
+}
+/* warmer, unscharfer "Raum"-Hintergrund statt Foto (bleibt offline und leicht) */
+:root[data-style=frost] body::before{inset:-80px;filter:blur(34px);
+  background:
+    linear-gradient(180deg,rgba(74,48,28,.75) 0,rgba(74,48,28,0) 16%),
+    radial-gradient(34vw 26vw at 22% 8%,rgba(120,82,50,.8),transparent 70%),
+    radial-gradient(30vw 24vw at 78% 6%,rgba(140,96,60,.75),transparent 70%),
+    radial-gradient(55vw 45vw at 12% 70%,#efe5d7,transparent 70%),
+    radial-gradient(45vw 40vw at 88% 55%,#c19a72,transparent 70%),
+    radial-gradient(38vw 34vw at 55% 92%,#e4d4bd,transparent 70%),
+    radial-gradient(26vw 26vw at 48% 38%,rgba(92,66,46,.55),transparent 70%),
+    linear-gradient(160deg,#d8c5ab,#b59474 55%,#e9dfd1)}
+/* Karten: helleres, dichteres Milchglas mit weißer Kante */
+[data-style=frost] .glass,[data-style=frost] .card,[data-style=frost] .kpi,[data-style=frost] .side,
+[data-style=frost] .seg,[data-style=frost] .status,[data-style=frost] .flash,[data-style=frost] .mini,[data-style=frost] .authcard{
+  background:linear-gradient(160deg,rgba(255,255,255,.5),rgba(255,255,255,.28));
+  border:1px solid rgba(255,255,255,.65);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.9),var(--shadow)}
+[data-style=frost] h1{font-weight:500;letter-spacing:-.03em}
+/* Hero: weißes Glas statt Lindgrün */
+[data-style=frost] .herocard{background:linear-gradient(160deg,rgba(255,255,255,.72),rgba(255,255,255,.42));color:var(--text);
+  border:1px solid rgba(255,255,255,.75);box-shadow:inset 0 1px 0 #fff,var(--shadow)}
+[data-style=frost] .herocard::after{display:none}
+[data-style=frost] .herocard .tag{background:rgba(255,255,255,.7);color:var(--text);border:1px solid rgba(255,255,255,.9)}
+[data-style=frost] .herospark rect{fill:#1c1c1e}
+[data-style=frost] .livedot.dark{background:#17803f;box-shadow:0 0 0 3px rgba(52,199,89,.25)}
+[data-style=frost] .kpi[aria-current=page]{background:linear-gradient(160deg,rgba(255,255,255,.82),rgba(255,255,255,.55));border-color:#fff}
+/* Kennzahl-Karten wie im Video: Icon-Kachel + Prozent-Badge */
+[data-style=frost] .kicon{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:9px;
+  background:rgba(255,255,255,.85);color:var(--text);box-shadow:0 1px 3px rgba(70,45,20,.15);font-style:normal}
+[data-style=frost] .kchg{display:inline-flex;align-items:center;gap:4px;font-style:normal;font-size:11px;font-weight:600;align-self:flex-start;
+  padding:3px 8px;border-radius:6px}
+[data-style=frost] .kchg small{font-weight:400;color:var(--muted);font-size:11px}
+[data-style=frost] .kchg.up{background:var(--ok-bg);color:var(--ok)}
+[data-style=frost] .kchg.down{background:var(--err-bg);color:var(--err)}
+[data-style=frost] .kchg.flat{background:var(--hover);color:var(--muted)}
+/* Ring-Diagramm statt Balken */
+[data-style=frost] .sharewrap{display:none}
+[data-style=frost] .donutbox{display:flex;align-items:center;gap:22px;flex-wrap:wrap}
+/* Logo + Badges ruhiger */
+[data-style=frost] .logo{background:#1c1c1e}
+[data-style=frost] .logo svg{stroke:#fff}
+[data-style=frost] .badge[data-pf]{color:color-mix(in srgb,var(--pc) 60%,#000)}
+
+/* Desktop: großes Milchglas-Panel + schwebende Icon-Leiste links */
+@media (min-width:761px){
+  [data-style=frost] .shell{flex-wrap:nowrap;align-items:flex-start}
+  [data-style=frost] .side{flex:0 0 68px;max-width:68px;min-width:68px;height:auto;margin:120px 0 0 22px;padding:12px 10px;
+    border-radius:999px;gap:10px;align-items:center;top:120px}
+  [data-style=frost] .side .brand{padding:0;justify-content:center}
+  [data-style=frost] .side .brand > span:not(.logo){display:none}
+  [data-style=frost] .side .status{display:none}
+  [data-style=frost] .nav{align-items:center;gap:6px}
+  [data-style=frost] .nav a,[data-style=frost] .nav button{width:46px;height:46px;padding:0;justify-content:center;font-size:0;gap:0;border-radius:50%}
+  [data-style=frost] .nav a[aria-current=page]{background:#fff;box-shadow:0 2px 8px rgba(70,45,20,.18)}
+  [data-style=frost] .content{margin:28px 28px 28px 18px;padding:34px 36px 48px;border-radius:34px;
+    background:linear-gradient(160deg,rgba(255,255,255,.3),rgba(255,255,255,.14));
+    -webkit-backdrop-filter:saturate(140%) blur(30px);backdrop-filter:saturate(140%) blur(30px);
+    border:1px solid rgba(255,255,255,.55);box-shadow:inset 0 1px 0 rgba(255,255,255,.8),0 30px 80px rgba(60,38,18,.22)}
+}
+[data-style=frost] .btn.primary,[data-style=frost] .btn.primary:hover{box-shadow:inset 0 1px 0 rgba(255,255,255,.18),0 8px 20px rgba(40,25,10,.25)}
+[data-style=frost] .logo{box-shadow:0 4px 12px rgba(40,25,10,.25)}

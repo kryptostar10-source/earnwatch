@@ -63,18 +63,26 @@
       <div class="mini"><span>Prognose Monat</span><b>{{ money(d.totals.forecast) }}</b></div>
       <div class="mini"><span>Ausgezahlt</span><b>{{ money(d.totals.paid_out) }}</b></div>
     </div>
-    <div>
+    <div class="sharewrap">
       {{ share_svg }}
       <div class="small muted sharelbl">Anteil je Plattform · {{ plong[period] }}</div>
+    </div>
+    <div class="donutbox">
+      {{ donut_svg }}
+      {{ donut_legend }}
     </div>
   </div>
 </section>
 
 <section class="kpis" aria-label="Einnahmen nach Zeitraum">
   {% for k in ['today','week','month','year'] %}
+  {% set cur_v = d.totals[k] %}{% set prev_v = d.totals['prev_' + k] %}
   <a class="kpi" href="{{ q(k, view) }}" {% if period == k %}aria-current="page"{% endif %}>
-    <span>{{ plabels[k] }}</span>
-    <b>{{ money(d.totals[k]) }}</b>
+    <span class="khead"><i class="kicon" aria-hidden="true"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">{% if k == 'today' %}<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>{% elif k == 'week' %}<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/>{% elif k == 'month' %}<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>{% else %}<path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z"/>{% endif %}</svg></i>{{ plabels[k] }}</span>
+    <b>{{ money(cur_v) }}</b>
+    {% if prev_v > 0 %}{% set ch = (cur_v / prev_v - 1) * 100 %}
+    <em class="kchg {{ 'up' if ch >= 0 else 'down' }}">{{ '▲' if ch >= 0 else '▼' }} {{ '%.0f'|format(ch|abs) }} %<small> ggü. {{ pprev[k] }}</small></em>
+    {% else %}<em class="kchg flat">– <small>noch kein Vergleich</small></em>{% endif %}
   </a>
   {% endfor %}
 </section>

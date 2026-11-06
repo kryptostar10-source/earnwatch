@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import datetime as dt
+import math
 from html import escape
 from markupsafe import Markup
 
@@ -346,4 +347,51 @@ def heatmap(days: dict, unit: str = "USD") -> Markup:
             out.append(f'<rect x="{x}" y="{y}" width="{cell}" height="{cell}" rx="3"{fill}>'
                        f'<title>{escape(tip)}</title></rect>')
     out.append("</svg>")
+    return Markup("".join(out))
+
+
+# --- Ring-Diagramm "Aufteilung je Plattform" (Stil Frost) --------------------
+def donut(share: list[dict], label: str = "gesamt", size: int = 200) -> Markup:
+    """Ring mit einem Segment je Plattform, in der Mitte die Summe."""
+    total = sum(s["value"] for s in share if s["value"] > 0)
+    r, sw = 78, 22
+    c = size / 2
+    circ = 2 * math.pi * r
+    out = [f'<svg viewBox="0 0 {size} {size}" class="donut" role="img" aria-label="Aufteilung je Plattform">',
+           f'<circle cx="{c}" cy="{c}" r="{r}" fill="none" class="dtrack" stroke-width="{sw}"/>']
+    if total > 0:
+        gap = 3.0 if len([s for s in share if s["value"] > 0]) > 1 else 0.0
+        off = 0.0
+        for s in share:
+            if s["value"] <= 0:
+                continue
+            seg = circ * s["value"] / total
+            vis = max(seg - gap, 0.8)
+            out.append(f'<circle cx="{c}" cy="{c}" r="{r}" fill="none" stroke="{s["color"]}" stroke-width="{sw}" '
+                       f'stroke-linecap="round" stroke-dasharray="{vis:.2f} {circ - vis:.2f}" '
+                       f'stroke-dashoffset="{-off:.2f}" transform="rotate(-90 {c} {c})">'
+                       f'<title>{escape(s["name"])}: {money(s["value"])} ({s["value"] / total * 100:.0f} %)</title></circle>')
+            off += seg
+    out.append(f'<text x="{c}" y="{c - 14}" text-anchor="middle" class="dsub">{escape(label)}</text>')
+    out.append(f'<text x="{c}" y="{c + 14}" text-anchor="middle" class="dval">{escape(money(total))}</text>')
+    out.append("</svg>")
+    return Markup("".join(out))
+
+
+def donut_legend(share: list[dict]) -> Markup:
+    """Legende mit Balken und Prozent – wie im Video, ohne Inline-Styles (CSP)."""
+    total = sum(s["value"] for s in share if s["value"] > 0)
+    rows = sorted((s for s in share if s["value"] > 0), key=lambda s: -s["value"])[:6]
+    if not rows:
+        return Markup('<p class="muted small">Noch keine Einnahmen in diesem Zeitraum.</p>')
+    out = ['<ul class="dlegend">']
+    for s in rows:
+        pct = s["value"] / total * 100
+        out.append(f'<li><svg class="ddot" viewBox="0 0 10 10" aria-hidden="true"><circle cx="5" cy="5" r="5" fill="{s["color"]}"/></svg>'
+                   f'<span class="dname">{escape(s["name"])}</span>'
+                   f'<svg class="dbar" viewBox="0 0 100 6" preserveAspectRatio="none" aria-hidden="true">'
+                   f'<rect width="100" height="6" rx="3" class="dtrackbar"/>'
+                   f'<rect width="{max(pct, 1.5):.1f}" height="6" rx="3" fill="{s["color"]}"/></svg>'
+                   f'<b class="dpct">{pct:.0f} %</b></li>')
+    out.append("</ul>")
     return Markup("".join(out))
