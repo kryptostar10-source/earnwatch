@@ -19,6 +19,7 @@ from urllib.parse import urlparse
 
 from starlette.applications import Starlette
 from starlette.concurrency import run_in_threadpool
+from starlette.datastructures import UploadFile
 from starlette.middleware import Middleware
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.requests import Request
@@ -28,7 +29,7 @@ from starlette.staticfiles import StaticFiles
 from starlette.templating import Jinja2Templates
 from markupsafe import Markup
 
-from . import achievements, auth, webauthn, charts, config, db, events, fx, notify, stats, totp
+from . import achievements, auth, backup, webauthn, charts, config, db, events, fx, notify, stats, totp
 from .collectors import PLATFORMS
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -353,6 +354,49 @@ async def setup(request: Request):
             flash(request, "Konto angelegt – bitte anmelden.")
             return redirect("/login")
     return render(request, "setup.html", {"error": error})
+
+
+async def setup_import(request: Request):
+    """Erster Start: vorhandenes EarnWatch per Backup-Datei übernehmen (z. B. von Proxmox nach Umbrel)."""
+    if db.user_count() > 0:
+        return redirect("/login")
+    def fail(msg: str, status: int = 400):
+        return render(request, "setup.html", {"error": msg, "mode": "import"}, status)
+    origin = request.headers.get("origin")
+    if origin and origin != "null" and not _origin_ok(request, origin):
+        return forbidden()
+    try:
+        size = int(request.headers.get("content-length", ""))
+    except ValueError:
+        return fail("Upload ohne Größenangabe wird nicht angenommen.", 411)
+    if size > backup.MAX_FILE + 65536:
+        return fail("Die Datei ist zu groß (max. 30 MB).", 413)
+    try:
+        form = await request.form(max_files=1, max_fields=6, max_part_size=8192)
+    except Exception:   # kaputter Upload
+        return fail("Upload fehlgeschlagen. Bitte noch einmal versuchen.")
+    if not auth.csrf_ok(request.session, form.get("csrf")):
+        return forbidden()
+    ip = client_ip(request)
+    if wait := auth.throttle.try_acquire(ip):
+        return fail(f"Zu viele Versuche. Bitte {wait//60+1} Min. warten.", 429)
+    if not config.UMBREL and not hmac.compare_digest(form.get("token", "").encode(), config.setup_token().encode()):
+        return fail("Einrichtungs-Token ist falsch.")
+    up = form.get("file")
+    if not isinstance(up, UploadFile):
+        return fail("Bitte die Backup-Datei auswählen.")
+    raw = await up.read(backup.MAX_FILE + 1)
+    await form.close()
+    try:
+        info = await run_in_threadpool(backup.restore, raw, str(form.get("bpassword", ""))[:256])
+    except backup.BackupError as e:
+        return fail(str(e))
+    auth.throttle.success(ip)
+    log.info("Backup eingespielt: Konto %s, %d Plattformen, %d Messpunkte", ",".join(info["users"]),
+             info["platforms"], info["snapshots"])
+    flash(request, f"Backup übernommen ({info['platforms']} Plattformen, {info['snapshots']} Messpunkte). "
+                   f"Melde dich mit deinem bisherigen Namen und Passwort an. Face ID/Passkey bitte neu einrichten.")
+    return redirect("/login")
 
 
 async def login(request: Request):
@@ -953,6 +997,26 @@ async def settings_save(request: Request):
             flash(request, msg)
         except ValueError:
             flash(request, "Intervall 15–1440 Minuten.", "err")
+    elif what == "backup":
+        pw, b1, b2 = form.get("password", ""), form.get("bpw", ""), form.get("bpw2", "")
+        if wait := auth.throttle.try_acquire(f"backup:{user['id']}", global_=False):
+            flash(request, f"Zu viele Versuche. Bitte {wait//60+1} Min. warten.", "err")
+        elif not await run_in_threadpool(auth.verify_password, pw, user["pw_hash"]):
+            flash(request, "Dein EarnWatch-Passwort ist falsch.", "err")
+        elif b1 != b2:
+            flash(request, "Die Backup-Passwörter stimmen nicht überein.", "err")
+        elif len(b1) < 12 or len(b1) > 256:
+            flash(request, "Backup-Passwort: mindestens 12 Zeichen.", "err")
+        else:
+            auth.throttle.success(f"backup:{user['id']}")
+            data = await run_in_threadpool(backup.export, b1)
+            notify.send("security", "💾 Backup erstellt",
+                        f"{user['username']} hat ein verschlüsseltes EarnWatch-Backup heruntergeladen.", priority=3, tags=["floppy_disk"])
+            log.info("Backup heruntergeladen von '%s'", user["username"])
+            name = f"earnwatch-backup-{dt.date.today().isoformat()}.ewbackup"
+            return Response(data, media_type="application/octet-stream",
+                            headers={"content-disposition": f'attachment; filename="{name}"', "cache-control": "no-store"})
+        return redirect("/settings#backup")
     elif what == "password":
         old, new, new2 = form.get("old", ""), form.get("new", ""), form.get("new2", "")
         if wait := auth.throttle.try_acquire(f"pwchange:{user['id']}", global_=False):
@@ -1089,6 +1153,7 @@ async def lifespan(app):
 routes = [
     Route("/", dashboard),
     Route("/setup", setup, methods=["GET", "POST"]),
+    Route("/setup/import", setup_import, methods=["POST"]),
     Route("/login", login, methods=["GET", "POST"]),
     Route("/logout", logout, methods=["POST"]),
     Route("/login/2fa", login_2fa, methods=["GET", "POST"]),

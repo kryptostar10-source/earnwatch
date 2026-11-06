@@ -166,6 +166,20 @@
     <button class="btn primary sm">Ändern</button>
   </form>
 </section>
+
+<section class="card setcard" id="backup">
+  <header><h2>Umzug &amp; Backup</h2></header>
+  <p class="muted small">Lädt <b>alles</b> als verschlüsselte Datei herunter: Konto, Zugangsdaten, Verlauf und Einstellungen.
+    Auf einer neuen Installation (z. B. Umbrel) beim ersten Start <b>„Ich habe schon EarnWatch“</b> wählen und die Datei hochladen.</p>
+  <form method="post" action="/settings/backup">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <label>Dein EarnWatch-Passwort<input name="password" type="password" required maxlength="256" autocomplete="current-password"></label>
+    <label>Backup-Passwort (mind. 12 Zeichen)<input name="bpw" type="password" required minlength="12" maxlength="256" autocomplete="new-password"></label>
+    <label>Backup-Passwort wiederholen<input name="bpw2" type="password" required minlength="12" maxlength="256" autocomplete="new-password"></label>
+    <button class="btn primary sm">Backup herunterladen</button>
+  </form>
+  <p class="hint">Das Backup-Passwort gut merken – ohne kann niemand die Datei öffnen, auch du nicht.</p>
+</section>
 </div>
 
 <section class="card setcard" id="notify">

@@ -1,16 +1,45 @@
 {% extends "base.html" %}
 {% block title %}Einrichtung · EarnWatch{% endblock %}
 {% block auth %}
-<form method="post" class="card authcard">
-  <div class="brand"><span class="logo"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0a0d11" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/></svg></span><span><b>EarnWatch einrichten</b><small>Admin-Konto anlegen</small></span></div>
-  {% if umbrel %}<p class="muted small">Willkommen auf Umbrel! Leg jetzt dein EarnWatch-Konto an. Umbrels Login schützt die App zusätzlich.</p>
-  {% else %}<p class="muted small">Das Einrichtungs-Token hat dir <code>install.sh</code> angezeigt. Es steht auch in <code>/opt/earnwatch/.env</code> (<code>EW_SETUP_TOKEN</code>).</p>{% endif %}
+<div class="card authcard">
+  <div class="brand"><span class="logo"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0a0d11" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/></svg></span><span><b>EarnWatch einrichten</b><small>{{ 'Auf Umbrel' if umbrel else 'Erster Start' }}</small></span></div>
   {% if error %}<div class="flash err">{{ error }}</div>{% endif %}
-  <input type="hidden" name="csrf" value="{{ csrf }}">
-  {% if not umbrel %}<label>Einrichtungs-Token<input name="token" required autocomplete="off" maxlength="200"></label>{% endif %}
-  <label>Benutzername<input name="username" required autocomplete="username" maxlength="32" pattern="[A-Za-z0-9]{3,32}"></label>
-  <label>Passwort (mind. 12 Zeichen)<input name="password" type="password" required minlength="12" maxlength="256" autocomplete="new-password"></label>
-  <label>Passwort wiederholen<input name="password2" type="password" required minlength="12" maxlength="256" autocomplete="new-password"></label>
-  <button class="btn primary">Konto anlegen</button>
-</form>
+  <div class="acctabs">
+    <input type="radio" class="acc-r r-new" name="setupmode" id="sm-new" {% if mode != 'import' %}checked{% endif %}>
+    <input type="radio" class="acc-r r-login" name="setupmode" id="sm-import" {% if mode == 'import' %}checked{% endif %}>
+    <div class="acc-bar">
+      <label for="sm-new" class="l-new">Neu einrichten</label>
+      <label for="sm-import" class="l-login">Ich habe schon EarnWatch</label>
+    </div>
+
+    <div class="acc-pane acc-new">
+      <form method="post" action="/setup">
+        {% if umbrel %}<p class="muted small">Leg dein EarnWatch-Konto an. Umbrels Login schützt die App zusätzlich.</p>
+        {% else %}<p class="muted small">Das Einrichtungs-Token hat dir <code>install.sh</code> angezeigt. Es steht auch in <code>/opt/earnwatch/.env</code> (<code>EW_SETUP_TOKEN</code>).</p>{% endif %}
+        <input type="hidden" name="csrf" value="{{ csrf }}">
+        {% if not umbrel %}<label>Einrichtungs-Token<input name="token" required autocomplete="off" maxlength="200"></label>{% endif %}
+        <label>Benutzername<input name="username" required autocomplete="username" maxlength="32" pattern="[A-Za-z0-9]{3,32}"></label>
+        <label>Passwort (mind. 12 Zeichen)<input name="password" type="password" required minlength="12" maxlength="256" autocomplete="new-password"></label>
+        <label>Passwort wiederholen<input name="password2" type="password" required minlength="12" maxlength="256" autocomplete="new-password"></label>
+        <button class="btn primary">Konto anlegen</button>
+      </form>
+    </div>
+
+    <div class="acc-pane acc-login">
+      <form method="post" action="/setup/import" enctype="multipart/form-data">
+        <ol class="accsteps">
+          <li>Im bisherigen EarnWatch: <b>Einstellungen → Umzug &amp; Backup</b> → Backup herunterladen.</li>
+          <li>Die Datei hier auswählen und dein Backup-Passwort eingeben.</li>
+          <li>Danach mit deinem <b>bisherigen</b> Namen und Passwort anmelden – Zugangsdaten, Verlauf und Einstellungen sind übernommen.</li>
+        </ol>
+        <input type="hidden" name="csrf" value="{{ csrf }}">
+        {% if not umbrel %}<label>Einrichtungs-Token<input name="token" required autocomplete="off" maxlength="200"></label>{% endif %}
+        <label>Backup-Datei (.ewbackup)<input name="file" type="file" required accept=".ewbackup,application/octet-stream" class="fileinput"></label>
+        <label>Backup-Passwort<input name="bpassword" type="password" required maxlength="256" autocomplete="off"></label>
+        <button class="btn primary">Backup übernehmen</button>
+        <p class="hint">Face ID / Passkeys werden nicht übernommen (sie gehören zur alten Adresse) – einfach neu einrichten.</p>
+      </form>
+    </div>
+  </div>
+</div>
 {% endblock %}
