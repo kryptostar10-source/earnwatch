@@ -7,7 +7,8 @@ cd "$(dirname "${BASH_SOURCE[0]}")"
 echo "==> Sicherheitskopie vor dem Update"
 bash ./backup.sh || echo "   (Backup übersprungen – läuft EarnWatch?)"
 echo "==> Neuer Code von GitHub"
-git pull --ff-only
+# Ordner gehört meist dem normalen Benutzer, das Skript läuft als root → nur für diesen Ordner erlauben
+git -c safe.directory="$PWD" pull --ff-only
 echo "==> Aktuelle Images holen (Caddy, Tailscale, Earn-Apps, Python-Basis)"
 docker compose pull --ignore-buildable 2>/dev/null || docker compose pull || true
 docker compose build --pull
