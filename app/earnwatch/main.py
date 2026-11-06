@@ -167,7 +167,7 @@ def render(request: Request, name: str, ctx: dict | None = None, status: int = 2
     theme = db.get_setting("theme", "auto") if db.user_count() else "auto"
     ui_style = db.get_setting("ui_style", "glass") if db.user_count() else "glass"
     ctx["theme"] = theme if theme in ("auto", "dark", "light") else "auto"
-    ctx["ui_style"] = ui_style if ui_style in ("glass", "nothing", "frost") else "glass"
+    ctx["ui_style"] = ui_style if ui_style in ("glass", "nothing", "frost", "peach") else "glass"
     if ctx["user"] and name in ("dashboard.html", "platform.html"):
         running = _collect_lock.locked() or any(not t.done() for t in _bg_tasks)
         waiting = request.session.get("await_collect")
@@ -526,6 +526,19 @@ async def logout(request: Request):
     return redirect("/login")
 
 
+def _kpi_waves(data: dict) -> dict:
+    """Kleine Verlaufskurven je Kennzahl (Tage / Wochen / Monate) – grün bei Plus, rot bei Minus."""
+    days = [v for _, v in sorted(data["heat"].items())]
+    chunk = lambda vals, size, n: [sum(vals[max(0, len(vals) - (i + 1) * size):len(vals) - i * size]) for i in range(n)][::-1]  # noqa: E731
+    series = {"today": days[-14:], "week": chunk(days, 7, 10), "month": chunk(days, 30, 12), "year": chunk(days, 15, 24)}
+    out = {}
+    for k, vals in series.items():
+        t = data["totals"]
+        up = t[k] >= t.get("prev_" + k, 0)
+        out[k] = charts.wave(vals, "#22b35e" if up else "#ef4444")
+    return out
+
+
 async def dashboard(request: Request):
     user = current_user(request)
     if not user:
@@ -558,10 +571,12 @@ async def dashboard(request: Request):
         "greeting": greeting,
         "today_str": f"{weekdays[now.weekday()]}, {now.day}. {months[now.month - 1]}",
         "bar_svg": charts.bar_chart(data["chart"]),
+        "line_svg": charts.line_compare(data["chart"]),
         "heat_svg": charts.heatmap(data["heat"]),
         "hero_svg": charts.hero_spark(data["hero_spark"]),
         "share_svg": charts.share_bar(data["share"]),
         "donut_svg": charts.donut(data["share"], "gesamt"),
+        "kpi_waves": _kpi_waves(data),
         "donut_legend": charts.donut_legend(data["share"]),
         "miners_svg": charts.miners(duino["info"].get("rigs", [])) if duino and duino["configured"] else None,
         "duino": duino,
@@ -907,7 +922,7 @@ async def settings_save(request: Request):
             if theme not in ("auto", "dark", "light"):
                 raise ValueError
             style = form.get("style", "glass")
-            if style not in ("glass", "nothing", "frost"):
+            if style not in ("glass", "nothing", "frost", "peach"):
                 raise ValueError
             db.set_setting("theme", theme)
             db.set_setting("ui_style", style)

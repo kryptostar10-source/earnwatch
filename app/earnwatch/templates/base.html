@@ -53,9 +53,24 @@
     </div>
   </nav>
   <main class="content">
+    <div class="topbar" aria-hidden="true">
+      <span class="tb-user"><span class="tb-av">{{ (user.username or '?')[:1]|upper }}</span>Willkommen, {{ user.username }}</span>
+      <span class="tb-mid"><span class="livedot"></span>{% if status.next_in is none %}Erster Abruf läuft gleich{% elif status.next_in < 1 %}Nächster Abruf gleich{% else %}Nächster Abruf in {{ status.next_in }} Min{% endif %}{% if status.containers %} · Container {{ status.containers.up }}/{{ status.containers.total }}{% endif %}</span>
+      <a class="tb-btn" href="/settings#notify" tabindex="-1"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 0 1-3.4 0"/></svg></a>
+    </div>
     {% if collecting %}<div class="flash busy" role="status"><span class="spin" aria-hidden="true"></span>Abruf läuft … die Seite aktualisiert sich gleich von selbst.</div>{% endif %}
     {% if flash %}<div class="flash {{ flash.kind }}" role="status">{{ flash.msg }}</div>{% endif %}
     {% block content %}{% endblock %}
+    <nav class="floatnav" aria-label="Schnellnavigation">
+      {% set path = request.url.path %}
+      <a href="/" {% if path == '/' %}aria-current="page"{% endif %}>Übersicht</a>
+      <a href="/#plattformen">Plattformen</a>
+      <a href="/#auszahlungen">Auszahlungen</a>
+      <a href="/erfolge" {% if path == '/erfolge' %}aria-current="page"{% endif %}>Erfolge</a>
+      <a href="/settings" {% if path == '/settings' %}aria-current="page"{% endif %}>Einstellungen</a>
+      <form method="post" action="/collect"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="back" value="/">
+        <button class="fn-plus" title="Jetzt abrufen" aria-label="Jetzt abrufen">+</button></form>
+    </nav>
   </main>
 </div>
 {% else %}

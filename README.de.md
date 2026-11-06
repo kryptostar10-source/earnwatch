@@ -34,7 +34,7 @@ am PC, auf dem iPhone und auf Wunsch auch von unterwegs.
 
 ## Vorschau
 
-### Drei Stile zum Auswählen
+### Vier Stile zum Auswählen
 
 **Liquid Glass** – bunte Glasflächen (Standard)
 
@@ -44,9 +44,15 @@ am PC, auf dem iPhone und auf Wunsch auch von unterwegs.
 
 ![Stil Dot](docs/screenshots/uebersicht-dot.jpg)
 
-**Frost** – helles Milchglas, schwebende Icon-Leiste und Ring-Diagramm
+**Frost** – helles Milchglas mit Willkommens-Leiste, schwebender Icon-Leiste, Ring-Diagramm, weicher Linien-Grafik und schwebender Menüleiste
 
 ![Stil Frost](docs/screenshots/uebersicht-frost.jpg)
+
+![Frost: Linien-Grafik und schwebende Menüleiste](docs/screenshots/frost-linien-grafik.jpg)
+
+**Peach** – warmes Apricot mit gerippten Formen, eine große Creme-Glasfläche, Mini-Kurven und farbige Prozentwerte
+
+![Stil Peach](docs/screenshots/uebersicht-peach.jpg)
 
 Liquid Glass und Dot gibt es jeweils hell und dunkel (automatisch wie dein Gerät, oder fest eingestellt):
 
@@ -54,7 +60,7 @@ Liquid Glass und Dot gibt es jeweils hell und dunkel (automatisch wie dein Gerä
 
 ### Auf dem iPhone
 
-![EarnWatch auf dem iPhone in allen drei Stilen](docs/screenshots/iphone-stile.jpg)
+![EarnWatch auf dem iPhone: Liquid Glass, Dot, Frost und Peach](docs/screenshots/iphone-stile.jpg)
 
 ### Eigene Seite für jede Plattform
 
@@ -104,8 +110,8 @@ Geräten und Auszahlungen.
 - Einnahmen **heute / Woche / Monat / Jahr / gesamt**, Diagramm nach Tagen, Wochen, Monaten oder Jahren
 - **Live-Zähler** beim Guthaben (hochgerechnet aus deinem 7-Tage-Schnitt)
 - **Kalender „Dein Jahr“** mit Serie und Rekord, **Erfolge** zum Freischalten
-- Erkennt **Auszahlungen** automatisch, zeigt **Prognose** für den Monat
-- **Drei Stile** (Liquid Glass, Dot, Frost), **hell/dunkel**, **Euro** mit Tageskurs der EZB
+- Erkennt **Auszahlungen** automatisch (kleine Korrekturen der Anbieter zählen nicht als Auszahlung), zeigt **Prognose** für den Monat
+- **Vier Stile** (Liquid Glass, Dot, Frost, Peach), **hell/dunkel**, **Euro** mit Tageskurs der EZB
 - **Handy-Benachrichtigungen** (ntfy oder Telegram), **iPhone-Widget**, als **App** auf dem Home-Bildschirm
 - **Login mit 2FA** (QR-Code) oder **Face ID / Passkey**
 - **Container-Wächter**: zeigt alle Docker-Container, startet abgestürzte EarnWatch-Container neu
@@ -265,9 +271,9 @@ Gibt es kein `remember_web_…`, hast du ohne den Haken angemeldet.
 
 ![Stil-Auswahl in den Einstellungen](docs/screenshots/einstellungen-stil.jpg)
 
-- **Stil:** Liquid Glass, Dot oder Frost
+- **Stil:** Liquid Glass, Dot, Frost oder Peach
 - **Design (hell/dunkel):** automatisch wie dein iPhone/PC, immer hell oder immer dunkel
-  (Frost ist immer hell)
+  (Frost und Peach sind immer hell)
 - **Währung:** Dollar oder Euro (Kurs kommt täglich automatisch von der Europäischen Zentralbank)
 
 Auf **Speichern** drücken – die Seite stellt sofort um.

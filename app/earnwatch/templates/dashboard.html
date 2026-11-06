@@ -21,6 +21,7 @@
       <a href="{{ q(k, view) }}" {% if period == k %}aria-current="page"{% endif %}>{{ plabels[k] }}</a>
       {% endfor %}
     </nav>
+    <a class="btn exportbtn" href="/export.csv"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>Export CSV</a>
     <form method="post" action="/collect">
       <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="back" value="/">
       <button class="btn primary" {% if collecting %}disabled{% endif %}>
@@ -79,6 +80,7 @@
   {% set cur_v = d.totals[k] %}{% set prev_v = d.totals['prev_' + k] %}
   <a class="kpi" href="{{ q(k, view) }}" {% if period == k %}aria-current="page"{% endif %}>
     <span class="khead"><i class="kicon" aria-hidden="true"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">{% if k == 'today' %}<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>{% elif k == 'week' %}<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/>{% elif k == 'month' %}<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>{% else %}<path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z"/>{% endif %}</svg></i>{{ plabels[k] }}</span>
+    {{ kpi_waves[k] }}
     <b>{{ money(cur_v) }}</b>
     {% if prev_v > 0 %}{% set ch = (cur_v / prev_v - 1) * 100 %}
     <em class="kchg {{ 'up' if ch >= 0 else 'down' }}">{{ '▲' if ch >= 0 else '▼' }} {{ '%.0f'|format(ch|abs) }} %<small> ggü. {{ pprev[k] }}</small></em>
@@ -92,15 +94,18 @@
     <div class="cardhead">
       <div>
         <h2>{{ {'day':'Tageseinnahmen','week':'Wocheneinnahmen','month':'Monatseinnahmen','year':'Jahreseinnahmen'}[view] }}</h2>
-        <span class="small muted">gestapelt nach Plattform, in {{ cur_label() }}</span>
+        <span class="small muted barsub">gestapelt nach Plattform, in {{ cur_label() }}</span>
+        <span class="small muted linesub">Fahr über die Grafik, um Zeitpunkte zu vergleichen</span>
       </div>
+      <span class="linelegend" aria-hidden="true"><i class="lk1"></i>Einnahmen <i class="lk2"></i>Durchschnitt</span>
       <nav class="seg small" aria-label="Diagramm-Ansicht">
         {% for v, l in [('day','Tage'),('week','Wochen'),('month','Monate'),('year','Jahre')] %}
         <a href="{{ q(period, v) }}" {% if view == v %}aria-current="page"{% endif %}>{{ l }}</a>
         {% endfor %}
       </nav>
     </div>
-    {% if d.has_data %}<div class="chartwrap end">{{ bar_svg }}</div>{% else %}<p class="muted">Noch keine Daten – nach den ersten Abrufen erscheint hier das Diagramm.</p>{% endif %}
+    {% if d.has_data %}<div class="chartwrap end barwrap">{{ bar_svg }}</div>
+    <div class="chartwrap end linewrap">{{ line_svg }}</div>{% else %}<p class="muted">Noch keine Daten – nach den ersten Abrufen erscheint hier das Diagramm.</p>{% endif %}
     <ul class="legend">{% for p in active if p.fac is not none %}<li><a href="/p/{{ p.id }}"><span class="dot" data-pf="{{ p.id }}"></span>{{ p.name }}</a></li>{% endfor %}</ul>
   </div>
 

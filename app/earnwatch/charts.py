@@ -395,3 +395,72 @@ def donut_legend(share: list[dict]) -> Markup:
                    f'<b class="dpct">{pct:.0f} %</b></li>')
     out.append("</ul>")
     return Markup("".join(out))
+
+
+def wave(values: list[float], color: str, width=120, height=40) -> Markup:
+    """Weiche Mini-Kurve (für die Kennzahl-Karten im Stil Peach)."""
+    if len(values) < 2:
+        return Markup("")
+    vmin, vmax = min(values), max(values)
+    span = (vmax - vmin) or 1
+    pad = 4
+    pts = [(pad + (width - 2 * pad) * i / (len(values) - 1),
+            pad + (height - 2 * pad) * (1 - (v - vmin) / span)) for i, v in enumerate(values)]
+    d = f"M{pts[0][0]:.1f},{pts[0][1]:.1f}"
+    for i in range(len(pts) - 1):   # Catmull-Rom -> Bézier, damit die Linie weich wird
+        p0, p1, p2 = pts[max(i - 1, 0)], pts[i], pts[i + 1]
+        p3 = pts[min(i + 2, len(pts) - 1)]
+        c1 = (p1[0] + (p2[0] - p0[0]) / 6, p1[1] + (p2[1] - p0[1]) / 6)
+        c2 = (p2[0] - (p3[0] - p1[0]) / 6, p2[1] - (p3[1] - p1[1]) / 6)
+        d += f" C{c1[0]:.1f},{c1[1]:.1f} {c2[0]:.1f},{c2[1]:.1f} {p2[0]:.1f},{p2[1]:.1f}"
+    return Markup(f'<svg viewBox="0 0 {width} {height}" class="kspark" aria-hidden="true">'
+                  f'<path d="{d}" fill="none" stroke="{color}" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>')
+
+
+def _smooth(pts: list[tuple[float, float]]) -> str:
+    d = f"M{pts[0][0]:.1f},{pts[0][1]:.1f}"
+    for i in range(len(pts) - 1):
+        p0, p1, p2 = pts[max(i - 1, 0)], pts[i], pts[i + 1]
+        p3 = pts[min(i + 2, len(pts) - 1)]
+        c1 = (p1[0] + (p2[0] - p0[0]) / 6, p1[1] + (p2[1] - p0[1]) / 6)
+        c2 = (p2[0] - (p3[0] - p1[0]) / 6, p2[1] - (p3[1] - p1[1]) / 6)
+        d += f" C{c1[0]:.1f},{c1[1]:.1f} {c2[0]:.1f},{c2[1]:.1f} {p2[0]:.1f},{p2[1]:.1f}"
+    return d
+
+
+def line_compare(bars: list[dict], width=860, height=280) -> Markup:
+    """Weiche Linien wie im Frost-Design: Einnahmen je Zeitraum (orange) und gleitender Schnitt (dunkel)."""
+    totals = [sum(b["values"].values()) for b in bars]
+    if len(totals) < 2:
+        return Markup('<p class="muted small">Noch zu wenig Werte für die Linien-Grafik.</p>')
+    k = 7 if len(totals) >= 21 else 3
+    avg = [sum(totals[max(0, i - k + 1):i + 1]) / len(totals[max(0, i - k + 1):i + 1]) for i in range(len(totals))]
+    pad_l, pad_r, pad_t, pad_b = 52, 10, 14, 28
+    w, h = width - pad_l - pad_r, height - pad_t - pad_b
+    vmax = _nice_max(max(totals))
+    n = len(totals)
+    X = lambda i: pad_l + w * i / (n - 1)          # noqa: E731
+    Y = lambda v: pad_t + h - h * max(v, 0) / vmax  # noqa: E731
+    out = [f'<svg viewBox="0 0 {width} {height}" class="chart lines" role="img" aria-label="Einnahmen und Durchschnitt">',
+           '<defs><linearGradient id="lcfill" x1="0" y1="0" x2="0" y2="1">'
+           '<stop offset="0" stop-color="#e8613c" stop-opacity=".22"/><stop offset="1" stop-color="#e8613c" stop-opacity="0"/>'
+           '</linearGradient></defs>']
+    for i in range(5):
+        y = pad_t + h - h * i / 4
+        out.append(f'<line x1="{pad_l}" x2="{width - pad_r}" y1="{y:.1f}" y2="{y:.1f}" class="grid"/>')
+        out.append(f'<text x="{pad_l - 10}" y="{y + 4:.1f}" class="axis" text-anchor="end">{money(vmax * i / 4)}</text>')
+    main = [(X(i), Y(v)) for i, v in enumerate(totals)]
+    path = _smooth(main)
+    out.append(f'<path d="{path} L{X(n - 1):.1f},{pad_t + h} L{X(0):.1f},{pad_t + h} Z" fill="url(#lcfill)"/>')
+    out.append(f'<path d="{path}" fill="none" stroke="#e8613c" stroke-width="2.6" stroke-linecap="round"/>')
+    out.append(f'<path d="{_smooth([(X(i), Y(v)) for i, v in enumerate(avg)])}" fill="none" class="lavg" '
+               f'stroke-width="2.4" stroke-linecap="round"/>')
+    slot = w / (n - 1)
+    for i, b in enumerate(bars):
+        out.append(f'<rect x="{X(i) - slot / 2:.1f}" y="{pad_t}" width="{slot:.1f}" height="{h}" class="hit">'
+                   f'<title>{escape(b["label"])}: {money(totals[i])} · Ø {money(avg[i])}</title></rect>')
+        if n <= 14 or i % max(1, n // 8) == 0 or i == n - 1:
+            out.append(f'<text x="{X(i):.1f}" y="{height - 8}" class="axis" text-anchor="middle">{escape(b["label"])}</text>')
+    out.append(f'<circle cx="{main[-1][0]:.1f}" cy="{main[-1][1]:.1f}" r="4.5" fill="#e8613c" stroke="#fff" stroke-width="2"/>')
+    out.append("</svg>")
+    return Markup("".join(out))

@@ -34,7 +34,7 @@ on your PC, on your iPhone and, if you like, on the go.
 
 ## Preview
 
-### Three styles to choose from
+### Four styles to choose from
 
 **Liquid Glass** – colourful glass panels (default)
 
@@ -44,9 +44,15 @@ on your PC, on your iPhone and, if you like, on the go.
 
 ![Dot style](docs/screenshots/uebersicht-dot.jpg)
 
-**Frost** – light frosted glass, floating icon bar and a donut chart
+**Frost** – light frosted glass with a welcome bar, floating icon rail, donut chart, smooth line chart and a floating menu bar
 
 ![Frost style](docs/screenshots/uebersicht-frost.jpg)
+
+![Frost line chart and floating menu bar](docs/screenshots/frost-linien-grafik.jpg)
+
+**Peach** – warm apricot with ribbed shapes, one big cream glass panel, mini curves and coloured percentages
+
+![Peach style](docs/screenshots/uebersicht-peach.jpg)
 
 Liquid Glass and Dot come in light and dark (automatic like your device, or fixed):
 
@@ -54,7 +60,7 @@ Liquid Glass and Dot come in light and dark (automatic like your device, or fixe
 
 ### On the iPhone
 
-![EarnWatch on the iPhone in all three styles](docs/screenshots/iphone-stile.jpg)
+![EarnWatch on the iPhone: Liquid Glass, Dot, Frost and Peach](docs/screenshots/iphone-stile.jpg)
 
 ### A page for every platform
 
@@ -103,8 +109,8 @@ Tap a platform to open its own page with a chart, balance history, best weekdays
 - Earnings for **today / week / month / year / total**, chart by days, weeks, months or years
 - **Live counter** on your balance (projected from your 7-day average)
 - **"Your year" calendar** with streak and record, **achievements** to unlock
-- Detects **payouts** automatically and shows a **monthly forecast**
-- **Three styles** (Liquid Glass, Dot, Frost), **light/dark**, **euro** with the daily ECB exchange rate
+- Detects **payouts** automatically (small provider corrections are not counted as payouts) and shows a **monthly forecast**
+- **Four styles** (Liquid Glass, Dot, Frost, Peach), **light/dark**, **euro** with the daily ECB exchange rate
 - **Phone notifications** (ntfy or Telegram), **iPhone widget**, installable as an **app** on your home screen
 - **Login with 2FA** (QR code) or **Face ID / passkey**
 - **Container watchdog**: lists all Docker containers and restarts crashed EarnWatch containers
@@ -266,9 +272,9 @@ If there is no `remember_web_…` cookie, you logged in without the "Remember Me
 
 ![Style selection in the settings](docs/screenshots/einstellungen-stil.jpg)
 
-- **Stil** (style): Liquid Glass, Dot or Frost
+- **Stil** (style): Liquid Glass, Dot, Frost or Peach
 - **Design (hell/dunkel)** (light/dark): automatic like your iPhone/PC, always light or always dark
-  (Frost is always light)
+  (Frost and Peach are always light)
 - **Währung** (currency): US dollar or euro (the rate comes automatically every day from the European Central Bank)
 
 Press **Speichern** (Save) – the page switches right away.

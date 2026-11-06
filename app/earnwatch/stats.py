@@ -68,6 +68,22 @@ def buckets(view: str, today: dt.date, first: dt.date | None):
     return out
 
 
+def _is_payout(before: float, after: float, min_payout: float) -> bool:
+    """Ist ein gesunkener Kontostand eine echte Auszahlung – oder nur eine kleine Korrektur?
+
+    Auszahlung, wenn
+      - fast das ganze Guthaben weg ist (danach höchstens 35 % übrig, mindestens 0,50 weniger), oder
+      - mindestens ~90 % der Auszahlungsgrenze der Plattform abgebucht wurden.
+    Alles andere (ein paar Cent weniger) ist eine Korrektur des Anbieters.
+    """
+    drop = before - after
+    if drop <= 0.005:
+        return False
+    if after <= before * 0.35 and drop >= 0.5:
+        return True
+    return bool(min_payout) and drop >= min_payout * 0.9
+
+
 def compute(view: str = "day", period: str = "week") -> dict:
     rows = db.snapshots()
     by_pf: dict[str, list] = defaultdict(list)
@@ -80,6 +96,7 @@ def compute(view: str = "day", period: str = "week") -> dict:
     first_day = None
     for pf, pts in by_pf.items():
         on_drop = PLATFORMS.get(pf, {}).get("on_drop", "payout")
+        min_pay = PLATFORMS.get(pf, {}).get("min_payout") or 0
         d = defaultdict(float)
         for (t0, b0), (t1, b1) in zip(pts, pts[1:]):
             delta = b1 - b0
@@ -87,8 +104,12 @@ def compute(view: str = "day", period: str = "week") -> dict:
                 d[day_of(t1)] += delta
             elif on_drop == "reset":
                 d[day_of(t1)] += max(b1, 0)   # neue Epoche: Stand beginnt wieder bei 0
-            elif delta < -0.005:
+            elif _is_payout(b0, b1, min_pay):
                 payouts.append({"platform": pf, "ts": t1, "amount": -delta})
+            else:
+                # Kleine Korrektur des Anbieters (z. B. EarnApp verrechnet Traffic nach) – keine Auszahlung.
+                # Als Minus am selben Tag verbuchen, sonst würde das Geld beim Wiederanstieg doppelt zählen.
+                d[day_of(t1)] += delta
         daily[pf] = d
         if pts:
             fd = day_of(pts[0][0])
