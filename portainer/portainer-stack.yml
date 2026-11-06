@@ -1,11 +1,13 @@
 # EarnWatch – Stack für Portainer (Web-Editor)
-# Vorher: Image "earnwatch:local" unter Images -> Build a new image aus earnwatch-image.tar bauen.
+# Das Image wird fertig von GitHub geladen (amd64 + arm64) – nichts selbst bauen.
+# Update: Stacks -> earnwatch -> "Update the stack" mit "Re-pull image" (Daten bleiben erhalten).
 # Variablen (EW_IP, EW_SUBNET, EW_GATEWAY, EW_PARENT_IF, EW_SETUP_TOKEN) unten im
 # Portainer-Formular bei "Environment variables" eintragen.
 
 services:
   earnwatch:
-    image: earnwatch:local
+    image: ghcr.io/kryptostar10-source/earnwatch:latest
+    pull_policy: always
     container_name: earnwatch
     restart: unless-stopped
     environment:
