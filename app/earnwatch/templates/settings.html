@@ -25,6 +25,23 @@
       {% elif meta.fallback_creds and meta.fallback_creds in configured %}<span class="pill dim">nutzt {{ platforms[meta.fallback_creds].name }}-Zugang</span>
       {% elif meta.manual %}<span class="pill warn">manuell</span>{% endif %}
     </header>
+    {% set acc = meta.account %}
+    {% if acc %}
+    <div class="acctabs">
+      <input type="radio" class="acc-r r-new" name="acc-{{ pf }}" id="acc-{{ pf }}-new" {% if pf not in configured %}checked{% endif %}>
+      <input type="radio" class="acc-r r-login" name="acc-{{ pf }}" id="acc-{{ pf }}-login" {% if pf in configured %}checked{% endif %}>
+      <div class="acc-bar">
+        <label for="acc-{{ pf }}-new" class="l-new">Neu bei {{ meta.name }}</label>
+        <label for="acc-{{ pf }}-login" class="l-login">Ich habe schon ein Konto</label>
+      </div>
+      <div class="acc-pane acc-new">
+        <a class="btn primary sm accbtn" href="{{ acc.signup }}" target="_blank" rel="noopener noreferrer">Konto erstellen ↗</a>
+        <ol class="accsteps">{% for s in acc.new_steps %}<li>{{ s }}</li>{% endfor %}</ol>
+      </div>
+      <div class="acc-pane acc-login">
+        <a class="btn sm accbtn" href="{{ acc.login }}" target="_blank" rel="noopener noreferrer">Bei {{ meta.name }} anmelden ↗</a>
+        <ol class="accsteps">{% for s in acc.login_steps %}<li>{{ s }}</li>{% endfor %}</ol>
+    {% endif %}
     <form method="post" action="/settings/{{ pf }}" autocomplete="off">
       <input type="hidden" name="csrf" value="{{ csrf }}">
       {% for f in meta.fields %}
@@ -34,12 +51,16 @@
         <button class="btn primary sm">{{ 'Eintragen' if meta.manual else 'Speichern' }}</button>
       </div>
     </form>
+    {% if acc %}
+      </div>
+    </div>
+    {% endif %}
     {% if pf in configured %}
     <form method="post" action="/settings/delete" class="delform">
       <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="platform" value="{{ pf }}">
       <button class="btn danger sm">Zugang löschen</button>
     </form>{% endif %}
-    <p class="hint">{{ meta.hint }}</p>
+    {% if not acc %}<p class="hint">{{ meta.hint }}</p>{% endif %}
   </section>
   {% endfor %}
   </div>

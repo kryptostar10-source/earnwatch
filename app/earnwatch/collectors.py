@@ -590,6 +590,22 @@ PLATFORMS = {
             {"key": "brd_sess_id", "label": "brd_sess_id (optional)", "type": "password", "required": False},
         ],
         "hint": "earnapp.com einloggen → F12 → Anwendung/Speicher → Cookies → oauth-refresh-token kopieren.",
+        "account": {
+            "signup": "https://earnapp.com/",
+            "login": "https://earnapp.com/dashboard",
+            "new_steps": [
+                "Auf „Konto erstellen“ tippen – EarnApp öffnet sich in einem neuen Tab.",
+                "Mit Google oder Apple registrieren (EarnApp hat kein eigenes Passwort).",
+                "EarnApp auf einem Gerät installieren oder den EarnApp-Container starten und das Gerät verknüpfen.",
+                "Danach hier oben auf „Ich habe schon ein Konto“ wechseln und den Schlüssel eintragen.",
+            ],
+            "login_steps": [
+                "Auf „Bei EarnApp anmelden“ tippen und mit Google oder Apple einloggen.",
+                "Am PC F12 drücken → Reiter „Anwendung“ (Chrome/Edge) bzw. „Speicher“ (Firefox).",
+                "Links „Cookies“ → https://earnapp.com öffnen.",
+                "Den Wert von oauth-refresh-token kopieren und unten einfügen → Speichern.",
+            ],
+        },
     },
     "grass": {
         "name": "Grass", "color": "#86EFAC", "short": "GR", "unit": "Punkte", "usd": None, "on_drop": "reset",

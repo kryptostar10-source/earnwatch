@@ -763,3 +763,23 @@ textarea.code{display:block;width:100%;margin-top:6px;padding:14px;border:1px so
     font-size:20px;line-height:1;cursor:pointer;box-shadow:0 2px 8px rgba(70,45,20,.15)}
   [data-style=frost] .fn-plus:hover{background:#1c1c1e;color:#fff}
 }
+
+/* ===== Konto-Reiter (Registrieren / Anmelden) – nur CSS, kein JS ===== */
+.acctabs{position:relative;margin:4px 0 2px}
+.acc-r{position:absolute;opacity:0;width:1px;height:1px;pointer-events:none}
+.acc-bar{display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:4px;border-radius:var(--pill);
+  background:var(--glass-2);border:1px solid var(--line);margin-bottom:12px}
+.acc-bar label{display:flex;align-items:center;justify-content:center;text-align:center;margin:0;padding:8px 10px;
+  border-radius:var(--pill);font-size:12.5px;font-weight:600;color:var(--muted);cursor:pointer;line-height:1.25;
+  transition:background .2s,color .2s}
+.acc-bar label:hover{color:var(--text)}
+.r-new:checked ~ .acc-bar .l-new,.r-login:checked ~ .acc-bar .l-login{background:var(--seg-on);color:var(--seg-on-ink)}
+.r-new:focus-visible ~ .acc-bar .l-new,.r-login:focus-visible ~ .acc-bar .l-login{outline:2px solid var(--accent);outline-offset:1px}
+.acc-pane{display:none}
+.r-new:checked ~ .acc-new,.r-login:checked ~ .acc-login{display:block}
+.accbtn{display:flex;width:100%;justify-content:center;text-decoration:none;margin-bottom:10px}
+.accsteps{margin:0 0 12px;padding-left:20px;font-size:12.5px;color:var(--soft);line-height:1.5}
+.accsteps li{margin:3px 0}
+.accsteps li::marker{color:var(--muted);font-weight:600}
+:root[data-style=peach] .r-new:checked ~ .acc-bar .l-new,:root[data-style=peach] .r-login:checked ~ .acc-bar .l-login{
+  background:#2b2118;color:#fff;box-shadow:0 3px 10px rgba(90,50,20,.18)}
