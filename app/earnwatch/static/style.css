@@ -795,3 +795,371 @@ input[type=file].fileinput::file-selector-button{margin-right:10px;padding:7px 1
 .grid2.tight form{display:flex;flex-direction:column;gap:10px}
 .mirrorbanner .actions{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
 .mirrorbanner .actions form{margin:0}
+
+/* =====================================================================
+   Stil „Folio“ – Aufbau wie Wealthfolio, Apple-Glas, hell & dunkel
+   ===================================================================== */
+.folio,.folio-grid{display:none}
+:root[data-style=folio]{
+  --bg:#eef0f5;
+  --text:#0d0f14;--soft:rgba(13,15,20,.78);--muted:rgba(13,15,20,.55);--faint:rgba(13,15,20,.38);
+  --glass:rgba(255,255,255,.5);--glass-2:rgba(255,255,255,.62);--glass-3:rgba(255,255,255,.8);
+  --edge:rgba(255,255,255,.75);--edge-hi:rgba(255,255,255,.95);--line:rgba(13,15,20,.07);--track:rgba(13,15,20,.08);
+  --accent:#34d399;--accent-hi:#6ee7b7;--ink:#04281a;
+  --ok:#0f8a5f;--ok-bg:rgba(16,185,129,.14);--err:#c2362b;--err-bg:rgba(239,68,68,.12);--warn:#9a6400;--warn-bg:rgba(245,158,11,.16);
+  --blur:saturate(190%) blur(30px);
+  --shadow:0 18px 44px rgba(30,40,70,.10),0 2px 6px rgba(30,40,70,.05);
+  --field:rgba(255,255,255,.7);--gridc:rgba(13,15,20,.06);--hover:rgba(13,15,20,.04);--avg:rgba(13,15,20,.4);
+  --seg-on:#0d0f14;--seg-on-ink:#fff;--link:#0d0f14;--link-hi:#000;
+  --mobile-bar:rgba(238,240,245,.82);--tabbar:rgba(255,255,255,.72);--solid:#f6f7fa;--hm0:rgba(13,15,20,.06);
+  --heatc:#10b981;
+  --fline:#10b981;--ffill:rgba(16,185,129,.28);--fup:#0f8a5f;
+  --num:-apple-system,BlinkMacSystemFont,"SF Pro Display","Sora",system-ui,sans-serif;
+  color-scheme:light;
+}
+:root[data-style=folio] body::before{
+  background:
+    radial-gradient(46vw 40vw at 6% 0%,rgba(147,197,253,.75),transparent 70%),
+    radial-gradient(40vw 36vw at 100% 8%,rgba(249,168,212,.55),transparent 70%),
+    radial-gradient(48vw 40vw at 90% 100%,rgba(110,231,183,.5),transparent 70%),
+    radial-gradient(40vw 34vw at 0% 100%,rgba(253,224,171,.6),transparent 70%),
+    #eef0f5}
+:root[data-style=folio] body{background:#eef0f5}
+@media (prefers-color-scheme:dark){:root[data-style=folio][data-theme=auto]{
+  --bg:#07080c;
+  --text:#f4f5f8;--soft:rgba(244,245,248,.8);--muted:rgba(244,245,248,.56);--faint:rgba(244,245,248,.38);
+  --glass:rgba(255,255,255,.06);--glass-2:rgba(255,255,255,.09);--glass-3:rgba(255,255,255,.14);
+  --edge:rgba(255,255,255,.12);--edge-hi:rgba(255,255,255,.28);--line:rgba(255,255,255,.07);--track:rgba(255,255,255,.08);
+  --ok:#4ade9f;--ok-bg:rgba(52,211,153,.14);--err:#ff8f86;--err-bg:rgba(248,113,113,.14);--warn:#fcd34d;--warn-bg:rgba(250,204,21,.12);
+  --shadow:0 20px 50px rgba(0,0,0,.45),0 2px 6px rgba(0,0,0,.3);
+  --field:rgba(0,0,0,.3);--gridc:rgba(255,255,255,.07);--hover:rgba(255,255,255,.05);--avg:rgba(255,255,255,.5);
+  --seg-on:#f4f5f8;--seg-on-ink:#07080c;--link:#f4f5f8;--link-hi:#fff;
+  --mobile-bar:rgba(10,11,16,.85);--tabbar:rgba(26,28,36,.72);--solid:#14161d;--hm0:rgba(255,255,255,.06);
+  --fline:#34d399;--ffill:rgba(52,211,153,.3);--fup:#4ade9f;
+  color-scheme:dark}
+  :root[data-style=folio][data-theme=auto] body::before{background:
+    radial-gradient(46vw 40vw at 6% 0%,rgba(59,130,246,.32),transparent 70%),
+    radial-gradient(40vw 36vw at 100% 8%,rgba(236,72,153,.22),transparent 70%),
+    radial-gradient(48vw 40vw at 90% 100%,rgba(16,185,129,.26),transparent 70%),
+    #07080c}
+  :root[data-style=folio][data-theme=auto] body{background:#07080c}
+}
+:root[data-style=folio][data-theme=dark]{
+  --bg:#07080c;
+  --text:#f4f5f8;--soft:rgba(244,245,248,.8);--muted:rgba(244,245,248,.56);--faint:rgba(244,245,248,.38);
+  --glass:rgba(255,255,255,.06);--glass-2:rgba(255,255,255,.09);--glass-3:rgba(255,255,255,.14);
+  --edge:rgba(255,255,255,.12);--edge-hi:rgba(255,255,255,.28);--line:rgba(255,255,255,.07);--track:rgba(255,255,255,.08);
+  --ok:#4ade9f;--ok-bg:rgba(52,211,153,.14);--err:#ff8f86;--err-bg:rgba(248,113,113,.14);--warn:#fcd34d;--warn-bg:rgba(250,204,21,.12);
+  --shadow:0 20px 50px rgba(0,0,0,.45),0 2px 6px rgba(0,0,0,.3);
+  --field:rgba(0,0,0,.3);--gridc:rgba(255,255,255,.07);--hover:rgba(255,255,255,.05);--avg:rgba(255,255,255,.5);
+  --seg-on:#f4f5f8;--seg-on-ink:#07080c;--link:#f4f5f8;--link-hi:#fff;
+  --mobile-bar:rgba(10,11,16,.85);--tabbar:rgba(26,28,36,.72);--solid:#14161d;--hm0:rgba(255,255,255,.06);
+  --fline:#34d399;--ffill:rgba(52,211,153,.3);--fup:#4ade9f;
+  color-scheme:dark}
+:root[data-style=folio][data-theme=dark] body::before{background:
+    radial-gradient(46vw 40vw at 6% 0%,rgba(59,130,246,.32),transparent 70%),
+    radial-gradient(40vw 36vw at 100% 8%,rgba(236,72,153,.22),transparent 70%),
+    radial-gradient(48vw 40vw at 90% 100%,rgba(16,185,129,.26),transparent 70%),
+    #07080c}
+:root[data-style=folio][data-theme=dark] body{background:#07080c}
+
+/* Glas: heller, weicher, feine Lichtkante oben */
+:root[data-style=folio] .card,:root[data-style=folio] .kpi,:root[data-style=folio] .side,:root[data-style=folio] .folio,
+:root[data-style=folio] .seg,:root[data-style=folio] .mini,:root[data-style=folio] .flash,:root[data-style=folio] .authcard{
+  background:var(--glass);border:1px solid var(--edge);
+  -webkit-backdrop-filter:var(--blur);backdrop-filter:var(--blur);
+  box-shadow:inset 0 1px 0 var(--edge-hi),var(--shadow)}
+:root[data-style=folio] h1{font-size:clamp(24px,2.6vw,30px);font-weight:650;letter-spacing:-.03em}
+:root[data-style=folio] .card h2,:root[data-style=folio] .cardhead h2{font-size:15px;font-weight:650;letter-spacing:-.01em}
+:root[data-style=folio] .btn.primary{background:var(--seg-on);color:var(--seg-on-ink);border-color:transparent;box-shadow:0 6px 18px rgba(0,0,0,.14)}
+:root[data-style=folio] .btn.primary:hover{filter:brightness(1.15)}
+:root[data-style=folio] .logo{background:linear-gradient(145deg,#6ee7b7,#34d399);box-shadow:0 6px 18px rgba(16,185,129,.35)}
+:root[data-style=folio] .hero{display:none}
+
+/* großer Verlauf oben */
+:root[data-style=folio] .folio{display:block;border-radius:var(--r-xl);padding:26px 28px 14px}
+.folio-top{display:flex;justify-content:space-between;align-items:flex-start;gap:18px;flex-wrap:wrap}
+.folio-lbl{font-size:13px;font-weight:600;color:var(--muted);margin-bottom:6px}
+.folio-big{font-family:var(--num);font-size:clamp(40px,6vw,66px);font-weight:300;letter-spacing:-.045em;line-height:1;font-variant-numeric:tabular-nums}
+.folio-chg{margin-top:12px;font-size:13.5px;color:var(--muted);display:flex;flex-wrap:wrap;align-items:center;gap:4px 6px}
+.fup{color:var(--fup);font-weight:650}.fflat{color:var(--faint)}
+.folio-chg .fup{background:var(--ok-bg);padding:3px 9px;border-radius:var(--pill)}
+.folio-sep{color:var(--faint)}
+.folio-seg a{min-width:46px;text-align:center}
+.folio-chart{margin:16px -6px 0}
+.folioarea{display:block;width:100%;height:auto;overflow:visible}
+.folioarea .fs1{stop-color:var(--fline);stop-opacity:.32}.folioarea .fs2{stop-color:var(--fline);stop-opacity:0}
+.folioarea .farea{fill:url(#fgrad)}
+.folioarea .fline{fill:none;stroke:var(--fline);stroke-width:2.6;stroke-linecap:round;stroke-linejoin:round;vector-effect:non-scaling-stroke}
+.folioarea .fbase{stroke:var(--line);stroke-width:1;stroke-dasharray:3 5}
+.folioarea .fend{fill:var(--fline);stroke:var(--solid);stroke-width:3}
+.folioarea .flbl{fill:var(--faint);font-size:12px;font-family:var(--sans)}
+.folioarea .fhit rect{fill:transparent}
+.folioarea .fhit line,.folioarea .fhit circle{opacity:0;transition:opacity .12s}
+.folioarea .fhit line{stroke:var(--muted);stroke-width:1;stroke-dasharray:2 3}
+.folioarea .fhit circle{fill:var(--solid);stroke:var(--fline);stroke-width:2.5}
+.folioarea .fhit:hover line,.folioarea .fhit:hover circle{opacity:1}
+
+/* Plattform-Liste + Seite */
+:root[data-style=folio] .folio-grid{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(0,1fr);gap:22px}
+.folio-list{padding:20px 14px 10px}
+.folio-list .cardhead{padding:0 10px 8px}
+.frow{display:grid;grid-template-columns:36px minmax(0,1fr) 96px minmax(92px,auto);align-items:center;gap:14px;
+  padding:11px 10px;border-radius:var(--r-sm);text-decoration:none;color:var(--text);transition:background .15s}
+.frow + .frow{border-top:1px solid var(--line)}
+.frow:hover{background:var(--hover);color:var(--text)}
+.fbadge text{fill:#fff;font:700 11.5px var(--sans);letter-spacing:.02em}
+.fname{display:flex;flex-direction:column;min-width:0}
+.fname b{font-size:14.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fname small,.fval small{font-size:12px;color:var(--muted)}
+.fval{display:flex;flex-direction:column;align-items:flex-end;font-variant-numeric:tabular-nums}
+.fval b{font-family:var(--num);font-size:15px;font-weight:600;letter-spacing:-.01em}
+.fval small.fup{color:var(--fup)}
+.fspark svg{display:block;width:96px;height:30px}
+.folio-side{padding:22px;display:flex;flex-direction:column;gap:14px}
+.folio-mid{font-family:var(--num);font-size:34px;font-weight:350;letter-spacing:-.035em;font-variant-numeric:tabular-nums}
+:root[data-style=folio] .folio-donut{display:grid;grid-template-columns:128px minmax(0,1fr);gap:18px;align-items:center}
+:root[data-style=folio] .folio-donut .donut{width:128px;height:128px}
+:root[data-style=folio] .folio-donut .dlegend{min-width:0}
+:root[data-style=folio] .folio-donut .dlegend li{grid-template-columns:10px minmax(56px,auto) 1fr 34px}
+.folio-stats{margin:0;display:grid;grid-template-columns:repeat(3,1fr);gap:10px;border-top:1px solid var(--line);padding-top:14px}
+.folio-stats div{display:flex;flex-direction:column;gap:3px}
+.folio-stats dt{font-size:11.5px;color:var(--muted)}
+.folio-stats dd{margin:0;font-weight:650;font-variant-numeric:tabular-nums}
+@media (max-width:900px){
+  :root[data-style=folio] .folio-grid{grid-template-columns:1fr}
+  :root[data-style=folio] .folio{padding:20px 18px 10px}
+  .frow{grid-template-columns:36px minmax(0,1fr) minmax(84px,auto)}
+  .fspark{display:none}
+}
+
+/* =====================================================================
+   Begrüßung beim Öffnen: Logo fliegt ein, „EarnWatch“ schreibt sich, dann Dashboard
+   Nur CSS (CSP-sicher). Erscheint nur nach > 30 Min. Pause. Aus bei „Bewegung reduzieren“.
+   ===================================================================== */
+.intro{position:fixed;inset:0;z-index:1000;display:grid;place-items:center;pointer-events:none;
+  background:color-mix(in srgb,var(--bg) 55%,transparent);
+  -webkit-backdrop-filter:blur(40px) saturate(180%);backdrop-filter:blur(40px) saturate(180%);
+  animation:ew-intro-out .65s cubic-bezier(.4,0,.2,1) 2s forwards}
+.intro-inner{display:flex;flex-direction:column;align-items:center;gap:16px;animation:ew-inner-out .6s cubic-bezier(.4,0,.2,1) 1.95s forwards}
+.intro-logo{width:92px;height:92px;border-radius:28px;display:grid;place-items:center;
+  background:linear-gradient(145deg,var(--accent-hi),var(--accent));
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.6),0 24px 60px color-mix(in srgb,var(--accent) 45%,transparent);
+  animation:ew-logo-in 1s cubic-bezier(.17,1.35,.4,1) both}
+:root[data-style=folio] .intro-logo{background:linear-gradient(145deg,#6ee7b7,#34d399)}
+.intro-path{stroke-dasharray:30;stroke-dashoffset:30;animation:ew-draw .55s ease-out .45s forwards}
+.intro-path.p2{animation-delay:.75s}
+.intro-word{display:flex;font-size:clamp(34px,6vw,48px);font-weight:700;letter-spacing:-.035em;color:var(--text)}
+.il{display:inline-block;opacity:0;animation:ew-letter .6s cubic-bezier(.2,1.25,.35,1) forwards}
+.il1{animation-delay:.42s}.il2{animation-delay:.47s}.il3{animation-delay:.52s}.il4{animation-delay:.57s}.il5{animation-delay:.62s}
+.il6{animation-delay:.67s}.il7{animation-delay:.72s}.il8{animation-delay:.77s}.il9{animation-delay:.82s}
+.intro-sub{font-size:16px;color:var(--muted);opacity:0;animation:ew-fade-up .6s ease 1.05s forwards}
+@keyframes ew-logo-in{0%{opacity:0;transform:translateY(70px) scale(.35) rotate(-14deg);filter:blur(14px)}
+  55%{opacity:1;filter:blur(0)}100%{opacity:1;transform:none;filter:none}}
+@keyframes ew-draw{to{stroke-dashoffset:0}}
+@keyframes ew-letter{0%{opacity:0;transform:translate(46px,10px) scale(.9);filter:blur(10px)}100%{opacity:1;transform:none;filter:none}}
+@keyframes ew-fade-up{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+@keyframes ew-inner-out{to{opacity:0;transform:scale(1.12);filter:blur(10px)}}
+@keyframes ew-intro-out{to{opacity:0;visibility:hidden}}
+/* danach gleiten die Karten nacheinander herein */
+.has-intro .side,.has-intro .content > *{animation:ew-rise .75s cubic-bezier(.2,.85,.25,1) both;animation-delay:2.05s}
+.has-intro .content > :nth-child(2){animation-delay:2.12s}.has-intro .content > :nth-child(3){animation-delay:2.19s}
+.has-intro .content > :nth-child(4){animation-delay:2.26s}.has-intro .content > :nth-child(5){animation-delay:2.33s}
+.has-intro .content > :nth-child(6){animation-delay:2.4s}.has-intro .content > :nth-child(n+7){animation-delay:2.47s}
+@keyframes ew-rise{from{opacity:0;transform:translateY(26px) scale(.985)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){
+  .intro{display:none}
+  .has-intro .side,.has-intro .content > *{animation:none}
+}
+
+/* =====================================================================
+   Stil „Desktop“ – wie macOS: Menüleiste, Dock, Fenster mit Ampel
+   (baut auf Folio auf: <html data-style="folio" data-desktop="1">)
+   ===================================================================== */
+.menubar,.dock{display:none}
+:root[data-desktop]{--r-xl:16px;--r-lg:14px;--win-shadow:0 24px 70px rgba(15,25,60,.22),0 0 0 .5px rgba(0,0,0,.14)}
+/* Hintergrundbild: weiche Wellen wie ein macOS-Wallpaper */
+:root[data-desktop] body::before{background:
+  radial-gradient(120vw 70vh at 10% 115%,#3b82f6 0,transparent 60%),
+  radial-gradient(90vw 60vh at 95% 105%,#14b8a6 0,transparent 55%),
+  radial-gradient(80vw 60vh at 85% -10%,#f472b6 0,transparent 60%),
+  radial-gradient(70vw 55vh at 0% 0%,#a5b4fc 0,transparent 60%),
+  conic-gradient(from 210deg at 60% 55%,#c7d2fe,#99f6e4,#bfdbfe,#fbcfe8,#c7d2fe)}
+:root[data-desktop][data-theme=dark] body::before{background:
+  radial-gradient(120vw 70vh at 10% 115%,#1e3a8a 0,transparent 60%),
+  radial-gradient(90vw 60vh at 95% 105%,#115e59 0,transparent 55%),
+  radial-gradient(80vw 60vh at 85% -10%,#6b21a8 0,transparent 60%),
+  conic-gradient(from 210deg at 60% 55%,#0b1026,#111b3d,#0b1f2a,#1d0f2e,#0b1026)}
+@media (prefers-color-scheme:dark){:root[data-desktop][data-theme=auto] body::before{background:
+  radial-gradient(120vw 70vh at 10% 115%,#1e3a8a 0,transparent 60%),
+  radial-gradient(90vw 60vh at 95% 105%,#115e59 0,transparent 55%),
+  radial-gradient(80vw 60vh at 85% -10%,#6b21a8 0,transparent 60%),
+  conic-gradient(from 210deg at 60% 55%,#0b1026,#111b3d,#0b1f2a,#1d0f2e,#0b1026)}}
+
+:root[data-desktop] .side,:root[data-desktop] .topbar,:root[data-desktop] .floatnav{display:none!important}
+:root[data-desktop] .shell{display:block}
+:root[data-desktop] .content{margin:0 auto;max-width:1280px;padding:52px clamp(14px,3vw,36px) 128px}
+
+/* Menüleiste */
+:root[data-desktop] .menubar{display:flex;align-items:center;gap:16px;position:fixed;top:0;left:0;right:0;z-index:50;height:30px;
+  padding:0 16px;font-size:13px;font-weight:500;color:var(--text);
+  background:color-mix(in srgb,var(--solid) 42%,transparent);
+  -webkit-backdrop-filter:saturate(180%) blur(30px);backdrop-filter:saturate(180%) blur(30px);
+  border-bottom:.5px solid var(--line)}
+.mb-logo{display:grid;place-items:center;color:var(--text)}
+.mb-app{font-weight:700}
+.mb-menu{display:flex;gap:2px}
+.mb-menu a,.mb-item{color:var(--text);text-decoration:none;padding:3px 9px;border-radius:6px;white-space:nowrap}
+.mb-menu a:hover{background:color-mix(in srgb,var(--text) 12%,transparent);color:var(--text)}
+.mb-right{margin-left:auto;display:flex;align-items:center;gap:2px}
+.mb-item{display:flex;align-items:center;gap:7px}
+.mb-item .livedot{width:7px;height:7px}
+
+/* Fenster: Ampel-Knöpfe + Titelleiste */
+:root[data-desktop] .content > .card,:root[data-desktop] .content > section > .card,:root[data-desktop] .folio{
+  position:relative;padding-top:50px;border-radius:var(--r-xl);box-shadow:inset 0 1px 0 var(--edge-hi),var(--win-shadow)}
+:root[data-desktop] .content > .card::before,:root[data-desktop] .content > section > .card::before,:root[data-desktop] .folio::before{
+  content:"";position:absolute;top:13px;left:15px;width:52px;height:12px;pointer-events:none;
+  background:radial-gradient(circle at 6px 6px,#ff5f57 5.5px,transparent 6px),
+             radial-gradient(circle at 26px 6px,#febc2e 5.5px,transparent 6px),
+             radial-gradient(circle at 46px 6px,#28c840 5.5px,transparent 6px)}
+:root[data-desktop] .content > .card::after,:root[data-desktop] .content > section > .card::after,:root[data-desktop] .folio::after{
+  content:"";position:absolute;top:37px;left:0;right:0;height:.5px;background:var(--line);pointer-events:none}
+:root[data-desktop] .folio{padding-top:58px}
+/* Kennzahlen als macOS-Widgets */
+:root[data-desktop] .kpi{border-radius:24px;box-shadow:inset 0 1px 0 var(--edge-hi),var(--win-shadow)}
+
+/* Dock */
+:root[data-desktop] .dock{display:flex;align-items:flex-end;gap:6px;position:fixed;left:50%;bottom:10px;transform:translateX(-50%);z-index:60;
+  padding:7px 8px;border-radius:22px;max-width:calc(100vw - 20px);
+  background:color-mix(in srgb,var(--solid) 58%,transparent);border:.5px solid var(--edge);
+  -webkit-backdrop-filter:saturate(180%) blur(28px);backdrop-filter:saturate(180%) blur(28px);
+  box-shadow:inset 0 1px 0 var(--edge-hi),0 14px 40px rgba(0,0,0,.25)}
+.dk{position:relative;display:block;margin:0;text-decoration:none}
+.dk button{all:unset;cursor:pointer;display:block;position:relative}
+.dk-tile{display:grid;place-items:center;width:52px;height:52px;border-radius:13px;color:#fff;
+  transition:transform .2s cubic-bezier(.3,1.4,.5,1);transform-origin:50% 100%;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.35),0 4px 10px rgba(0,0,0,.18)}
+svg.dk-tile{box-shadow:none;filter:drop-shadow(0 4px 8px rgba(0,0,0,.18))}
+svg.dk-tile text{fill:#fff;font:700 15px var(--sans)}
+.dk-ic{width:26px;height:26px}
+.t-home{background:linear-gradient(160deg,#60a5fa,#2563eb)}
+.t-pay{background:linear-gradient(160deg,#4ade80,#16a34a)}
+.t-star{background:linear-gradient(160deg,#fde047,#f59e0b)}
+.t-gear{background:linear-gradient(160deg,#d4d4d8,#71717a)}
+.t-sync{background:linear-gradient(160deg,#5eead4,#0d9488)}
+.t-out{background:linear-gradient(160deg,#fca5a5,#dc2626)}
+.dk:hover .dk-tile,.dk:focus-within .dk-tile{transform:scale(1.32) translateY(-6px)}
+.dk:hover + .dk .dk-tile,.dk:has(+ .dk:hover) .dk-tile{transform:scale(1.12) translateY(-2px)}
+.dk-tip{position:absolute;bottom:calc(100% + 26px);left:50%;transform:translateX(-50%);white-space:nowrap;pointer-events:none;
+  padding:4px 10px;border-radius:7px;font-size:12.5px;font-weight:500;color:var(--text);opacity:0;transition:opacity .12s;
+  background:color-mix(in srgb,var(--solid) 80%,transparent);border:.5px solid var(--edge);
+  -webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px);box-shadow:0 6px 18px rgba(0,0,0,.18)}
+.dk:hover .dk-tip,.dk:focus-within .dk-tip{opacity:1}
+.dk.on::after{content:"";position:absolute;left:50%;bottom:-5px;width:4px;height:4px;margin-left:-2px;border-radius:50%;background:var(--text);opacity:.7}
+.dk-sep{width:1px;align-self:stretch;margin:4px 3px;background:var(--line)}
+:root[data-desktop] .dk a:focus-visible,:root[data-desktop] .dk button:focus-visible{outline:none}
+
+@media (max-width:760px){
+  :root[data-desktop] .content{padding:44px 12px 104px}
+  .mb-menu,.mb-hide,.mb-right .mb-item:nth-last-child(2){display:none}
+  :root[data-desktop] .dock{left:8px;right:8px;transform:none;overflow-x:auto;scrollbar-width:none;justify-content:flex-start;gap:8px;bottom:8px}
+  .dk-tile{width:46px;height:46px;border-radius:12px}
+  .dk:hover .dk-tile,.dk:hover + .dk .dk-tile,.dk:has(+ .dk:hover) .dk-tile{transform:none}
+  .dk-tip{display:none}
+}
+@media (prefers-reduced-motion:reduce){.dk-tile{transition:none}}
+/* echtes App-Symbol im Dock: auf weißer Kachel, damit auch kleine Favicons wie App-Icons aussehen */
+.dk-img{background:#fff;overflow:hidden;padding:0}
+.dk-img img{width:100%;height:100%;object-fit:contain;display:block;border-radius:inherit}
+.dk-img.dk-small img{padding:11px}
+
+/* =====================================================================
+   Hintergrundbilder (Folio & Desktop) – nur CSS-Verläufe, kein Download
+   ===================================================================== */
+:root{
+  --wall-sonoma:
+    radial-gradient(120% 70% at 10% 115%,#3b82f6 0,transparent 60%),
+    radial-gradient(90% 60% at 95% 105%,#14b8a6 0,transparent 55%),
+    radial-gradient(80% 60% at 85% -10%,#f472b6 0,transparent 60%),
+    radial-gradient(70% 55% at 0% 0%,#a5b4fc 0,transparent 60%),
+    conic-gradient(from 210deg at 60% 55%,#c7d2fe,#99f6e4,#bfdbfe,#fbcfe8,#c7d2fe);
+  --wall-sunset:
+    radial-gradient(110% 70% at 50% 120%,#f97316 0,transparent 62%),
+    radial-gradient(80% 60% at 100% 60%,#ec4899 0,transparent 60%),
+    radial-gradient(80% 60% at 0% 30%,#fb923c 0,transparent 60%),
+    radial-gradient(90% 60% at 60% -20%,#8b5cf6 0,transparent 62%),
+    linear-gradient(180deg,#fde68a,#fdba74 45%,#f9a8d4);
+  --wall-ocean:
+    radial-gradient(110% 70% at 20% 115%,#1d4ed8 0,transparent 62%),
+    radial-gradient(80% 60% at 100% 90%,#0891b2 0,transparent 60%),
+    radial-gradient(70% 50% at 80% -10%,#67e8f9 0,transparent 60%),
+    radial-gradient(70% 55% at 0% 0%,#93c5fd 0,transparent 62%),
+    linear-gradient(180deg,#e0f2fe,#7dd3fc 55%,#2563eb);
+  --wall-forest:
+    radial-gradient(110% 70% at 30% 120%,#047857 0,transparent 62%),
+    radial-gradient(80% 60% at 100% 70%,#16a34a 0,transparent 60%),
+    radial-gradient(70% 50% at 85% -10%,#bef264 0,transparent 60%),
+    radial-gradient(70% 55% at 0% 10%,#6ee7b7 0,transparent 62%),
+    linear-gradient(180deg,#ecfccb,#86efac 50%,#059669);
+  --wall-aurora:
+    linear-gradient(162deg,transparent 22%,rgba(52,211,153,.85) 34%,transparent 48%),
+    linear-gradient(150deg,transparent 40%,rgba(167,139,250,.8) 54%,transparent 68%),
+    linear-gradient(170deg,transparent 58%,rgba(34,211,238,.6) 70%,transparent 82%),
+    radial-gradient(90% 50% at 50% 120%,#1e3a8a 0,transparent 70%),
+    linear-gradient(180deg,#c7d2fe,#a5b4fc 40%,#6366f1);
+  --wall-lavender:
+    radial-gradient(100% 70% at 0% 110%,#a78bfa 0,transparent 60%),
+    radial-gradient(90% 60% at 100% 100%,#f0abfc 0,transparent 60%),
+    radial-gradient(80% 60% at 90% -10%,#c4b5fd 0,transparent 60%),
+    radial-gradient(70% 55% at 10% 0%,#fbcfe8 0,transparent 62%),
+    linear-gradient(180deg,#f5f3ff,#ddd6fe);
+  --wall-graphite:
+    radial-gradient(100% 70% at 0% 110%,#9ca3af 0,transparent 60%),
+    radial-gradient(90% 60% at 100% 100%,#d1d5db 0,transparent 60%),
+    radial-gradient(80% 60% at 85% -10%,#e5e7eb 0,transparent 60%),
+    conic-gradient(from 200deg at 55% 50%,#f3f4f6,#d1d5db,#e5e7eb,#9ca3af,#f3f4f6);
+}
+:root[data-wall=sonoma][data-wall] body::before{background:var(--wall-sonoma)}
+:root[data-wall=sunset][data-wall] body::before{background:var(--wall-sunset)}
+:root[data-wall=ocean][data-wall] body::before{background:var(--wall-ocean)}
+:root[data-wall=forest][data-wall] body::before{background:var(--wall-forest)}
+:root[data-wall=aurora][data-wall] body::before{background:var(--wall-aurora)}
+:root[data-wall=lavender][data-wall] body::before{background:var(--wall-lavender)}
+:root[data-wall=graphite][data-wall] body::before{background:var(--wall-graphite)}
+/* Dunkel: dasselbe Bild, nur abgedunkelt – wie macOS-Dynamik-Hintergründe bei Nacht */
+:root[data-wall][data-theme=dark] body::before{filter:brightness(.38) saturate(1.25)}
+@media (prefers-color-scheme:dark){:root[data-wall][data-theme=auto] body::before{filter:brightness(.38) saturate(1.25)}}
+
+/* Auswahl in den Einstellungen */
+.wallpick{border:0;margin:0 0 6px;padding:0;min-width:0}
+.wallpick legend{padding:0;margin-bottom:8px;font-size:13px;font-weight:600}
+.walls{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:10px}
+.wall{position:relative;display:flex;flex-direction:column;gap:6px;margin:0;cursor:pointer;font-size:12px;color:var(--soft)}
+.wall input{position:absolute;opacity:0;width:1px;height:1px}
+.wsw{display:block;aspect-ratio:16/10;border-radius:12px;border:1px solid var(--line);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.35),0 4px 12px rgba(0,0,0,.12);transition:transform .15s,box-shadow .15s}
+.wall:hover .wsw{transform:translateY(-2px)}
+.wall input:checked + .wsw{box-shadow:0 0 0 2px var(--solid),0 0 0 4px var(--fline,var(--accent)),0 6px 16px rgba(0,0,0,.16)}
+.wall input:focus-visible + .wsw{outline:2px solid var(--accent);outline-offset:3px}
+.wall input:checked ~ .wname{color:var(--text);font-weight:650}
+.w-std{background:radial-gradient(60% 70% at 0% 0%,#93c5fd,transparent 70%),radial-gradient(60% 70% at 100% 0%,#f9a8d4,transparent 70%),
+  radial-gradient(70% 70% at 90% 100%,#6ee7b7,transparent 70%),#eef0f5}
+.w-sonoma{background:var(--wall-sonoma)}.w-sunset{background:var(--wall-sunset)}.w-ocean{background:var(--wall-ocean)}
+.w-forest{background:var(--wall-forest)}.w-aurora{background:var(--wall-aurora)}.w-lavender{background:var(--wall-lavender)}
+.w-graphite{background:var(--wall-graphite)}
+/* Foto als Hintergrund */
+:root[data-wall=photo][data-wall] body::before{background:#0b0f19 url(/wallpaper) center/cover no-repeat}
+:root[data-wall=photo][data-theme=dark] body::before{filter:brightness(.6) saturate(1.05)}
+@media (prefers-color-scheme:dark){:root[data-wall=photo][data-theme=auto] body::before{filter:brightness(.6) saturate(1.05)}}
+.w-photo{background:#334155 url(/wallpaper) center/cover no-repeat}
+.wallform{display:flex;flex-direction:column;gap:12px}
+.wallform .acc-pane{flex-direction:column;gap:10px}
+.wallform .r-new:checked ~ .acc-new,.wallform .r-login:checked ~ .acc-login{display:flex}
+.presets{display:flex;flex-direction:column;gap:8px}
+.preset{display:flex;align-items:center;gap:12px;margin:0;padding:10px 12px;border-radius:var(--r-sm);border:1px solid var(--line);cursor:pointer;background:var(--glass-2)}
+.preset input{accent-color:var(--fline,var(--accent));width:18px;height:18px;flex:none}
+.preset:has(input:checked){border-color:var(--fline,var(--accent));box-shadow:0 0 0 1px var(--fline,var(--accent))}
+.pname{display:flex;flex-direction:column}.pname small{color:var(--muted);font-size:12px}
+.wallnow{display:flex;align-items:center;gap:14px}
+.wallnow img{width:160px;height:100px;object-fit:cover;border-radius:12px;border:1px solid var(--line)}

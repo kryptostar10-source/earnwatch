@@ -464,3 +464,39 @@ def line_compare(bars: list[dict], width=860, height=280) -> Markup:
     out.append(f'<circle cx="{main[-1][0]:.1f}" cy="{main[-1][1]:.1f}" r="4.5" fill="#e8613c" stroke="#fff" stroke-width="2"/>')
     out.append("</svg>")
     return Markup("".join(out))
+
+
+def folio_area(days: list, values: list[float], width=1000, height=240) -> Markup:
+    """Großes, ruhiges Flächendiagramm wie bei Wealthfolio: aufsummierte Einnahmen über den Zeitraum."""
+    if len(values) < 2:
+        return Markup('<p class="muted small">Noch zu wenig Tage für den Verlauf.</p>')
+    cum, s = [], 0.0
+    for v in values:
+        s += v
+        cum.append(s)
+    vmin, vmax = 0.0, max(cum) or 1.0
+    top, bot = 16, height - 24
+    n = len(cum)
+    xs = [i * width / (n - 1) for i in range(n)]
+    ys = [bot - (c - vmin) / (vmax - vmin) * (bot - top) for c in cum]
+    pts = list(zip(xs, ys))
+    line = _smooth(pts)
+    area = f"{line} L{width:.1f},{bot:.1f} L0,{bot:.1f} Z"
+    # unsichtbare Spalten mit Tooltip (Datum + Stand)
+    colw = width / n
+    hits = "".join(
+        f'<g class="fhit"><rect x="{max(0, x - colw / 2):.1f}" y="0" width="{colw:.1f}" height="{height}"/>'
+        f'<line x1="{x:.1f}" x2="{x:.1f}" y1="{top}" y2="{bot}"/><circle cx="{x:.1f}" cy="{y:.1f}" r="4.5"/>'
+        f'<title>{escape(d.strftime("%d.%m.%Y"))}: {escape(money(c))} (+{escape(money(v))})</title></g>'
+        for x, y, c, v, d in zip(xs, ys, cum, values, days))
+    lbl = (f'<text x="0" y="{height - 4}" class="flbl">{escape(days[0].strftime("%d.%m."))}</text>'
+           f'<text x="{width}" y="{height - 4}" class="flbl" text-anchor="end">{escape(days[-1].strftime("%d.%m."))}</text>')
+    ex, ey = pts[-1]
+    return Markup(
+        f'<svg class="folioarea" viewBox="0 0 {width} {height}" role="img" '
+        f'aria-label="Verdient im Zeitraum: {escape(money(cum[-1]))}">'
+        '<defs><linearGradient id="fgrad" x1="0" y1="0" x2="0" y2="1">'
+        '<stop offset="0" class="fs1"/><stop offset="1" class="fs2"/></linearGradient></defs>'
+        f'<line class="fbase" x1="0" x2="{width}" y1="{bot}" y2="{bot}"/>'
+        f'<path class="farea" d="{area}"/><path class="fline" d="{line}"/>'
+        f'<circle class="fend" cx="{ex:.1f}" cy="{ey:.1f}" r="5"/>{lbl}{hits}</svg>')

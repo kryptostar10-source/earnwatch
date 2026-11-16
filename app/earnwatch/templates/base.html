@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="de" data-theme="{{ theme|default('auto') }}" data-style="{{ ui_style|default('glass') }}">
+<html lang="de" data-theme="{{ theme|default('auto') }}" data-style="{{ 'folio' if ui_style == 'desktop' else ui_style|default('glass') }}"{% if ui_style == 'desktop' %} data-desktop="1"{% endif %}{% if wall and wall != 'std' and ui_style in ('folio', 'desktop') and (user or wall != 'photo') %} data-wall="{{ wall }}"{% endif %}>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -21,7 +21,44 @@
 {% if collecting %}<meta http-equiv="refresh" content="4">{% endif %}
 {% block head %}{% endblock %}
 </head>
-<body>
+<body{% if intro %} class="has-intro"{% endif %}>
+{% if intro and user %}
+<div class="intro" aria-hidden="true">
+  <div class="intro-inner">
+    <span class="intro-logo"><svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="#0a0d11" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path class="intro-path" d="M3 17l6-6 4 4 8-8"/><path class="intro-path p2" d="M15 7h6v6"/></svg></span>
+    <span class="intro-word">{% for ch in "EarnWatch" %}<span class="il il{{ loop.index }}">{{ ch }}</span>{% endfor %}</span>
+    <span class="intro-sub">{{ greeting }}, {{ user.username }}</span>
+  </div>
+</div>
+{% endif %}
+{% if user and ui_style == 'desktop' %}
+<header class="menubar">
+  <a href="/" class="mb-logo" aria-label="Übersicht"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/></svg></a>
+  <b class="mb-app">EarnWatch</b>
+  <nav class="mb-menu" aria-label="Menü">
+    <a href="/">Übersicht</a><a href="/#plattformen">Plattformen</a><a href="/#auszahlungen">Auszahlungen</a><a href="/erfolge">Erfolge</a><a href="/settings">Einstellungen</a>
+  </nav>
+  <span class="mb-right">
+    <span class="mb-item"><span class="livedot"></span>{% if status.next_in is none %}Abruf gleich{% else %}Abruf in {{ status.next_in }} Min{% endif %}</span>
+    {% if status.containers %}<span class="mb-item mb-hide">🐳 {{ status.containers.up }}/{{ status.containers.total }}</span>{% endif %}
+    <span class="mb-item">{{ user.username }}</span>
+    <span class="mb-item mb-clock">{{ clock }}</span>
+  </span>
+</header>
+<nav class="dock" aria-label="Dock">
+  {% set path = request.url.path %}
+  <a class="dk {% if path == '/' %}on{% endif %}" href="/"><span class="dk-tile t-home"><svg class="dk-ic " viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 13h8V3H3zM13 21h8V11h-8zM3 21h8v-6H3zM13 3v6h8V3z"/></svg></span><span class="dk-tip">Übersicht</span></a>
+  {% for p in dock %}<a class="dk" href="/p/{{ p.id }}">{% if p.icon %}<span class="dk-tile dk-img{{ " dk-small" if p.icon[0] in ("ico", "gif") else "" }}"><img src="/icon/{{ p.id }}?v={{ p.icon[1] }}" alt="" width="52" height="52" loading="lazy" decoding="async"></span>{% else %}<svg class="dk-tile" viewBox="0 0 48 48" aria-hidden="true"><rect width="48" height="48" rx="12" fill="{{ p.color }}"/><text x="24" y="29.5" text-anchor="middle">{{ p.short }}</text></svg>{% endif %}<span class="dk-tip">{{ p.name }}</span></a>{% endfor %}
+  <span class="dk-sep" aria-hidden="true"></span>
+  <a class="dk" href="/#auszahlungen"><span class="dk-tile t-pay"><svg class="dk-ic " viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 7h20v12H2zM2 11h20M6 15h4"/></svg></span><span class="dk-tip">Auszahlungen</span></a>
+  <a class="dk {% if path == '/erfolge' %}on{% endif %}" href="/erfolge"><span class="dk-tile t-star"><svg class="dk-ic " viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z"/></svg></span><span class="dk-tip">Erfolge</span></a>
+  <a class="dk {% if path == '/settings' %}on{% endif %}" href="/settings"><span class="dk-tile t-gear"><svg class="dk-ic " viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/></svg></span><span class="dk-tip">Einstellungen</span></a>
+  <form method="post" action="/collect" class="dk"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="back" value="/">
+    <button><span class="dk-tile t-sync"><svg class="dk-ic " viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg></span><span class="dk-tip">{{ 'Aktualisieren' if status.mirror else 'Jetzt abrufen' }}</span></button></form>
+  <form method="post" action="/logout" class="dk"><input type="hidden" name="csrf" value="{{ csrf }}">
+    <button><span class="dk-tile t-out"><svg class="dk-ic " viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg></span><span class="dk-tip">Abmelden</span></button></form>
+</nav>
+{% endif %}
 {% if user %}
 <div class="shell">
   <nav class="side" aria-label="Hauptmenü">

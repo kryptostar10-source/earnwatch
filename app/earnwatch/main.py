@@ -8,6 +8,7 @@ import hmac
 import secrets
 import csv
 import datetime as dt
+import urllib.parse
 import io
 import json
 import logging
@@ -29,7 +30,7 @@ from starlette.staticfiles import StaticFiles
 from starlette.templating import Jinja2Templates
 from markupsafe import Markup
 
-from . import achievements, auth, backup, mirror, webauthn, charts, config, db, events, fx, notify, stats, totp
+from . import achievements, auth, backup, icons, mirror, wallpaper, webauthn, charts, config, db, events, fx, notify, stats, totp
 from .collectors import PLATFORMS
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -160,6 +161,11 @@ def current_user(request: Request):
     return user
 
 
+# Hintergrundbilder (nur CSS-Verläufe) für die Stile Folio und Desktop
+WALLPAPERS = {"std": "Standard", "sonoma": "Sonoma", "sunset": "Abendrot", "ocean": "Ozean", "forest": "Wald",
+              "aurora": "Polarlicht", "lavender": "Lavendel", "graphite": "Graphit", "photo": "Foto"}
+
+
 def render(request: Request, name: str, ctx: dict | None = None, status: int = 200):
     ctx = dict(ctx or {})
     ctx["csrf"] = auth.csrf_token(request.session)
@@ -169,7 +175,9 @@ def render(request: Request, name: str, ctx: dict | None = None, status: int = 2
     theme = db.get_setting("theme", "auto") if db.user_count() else "auto"
     ui_style = db.get_setting("ui_style", "glass") if db.user_count() else "glass"
     ctx["theme"] = theme if theme in ("auto", "dark", "light") else "auto"
-    ctx["ui_style"] = ui_style if ui_style in ("glass", "nothing", "frost", "peach") else "glass"
+    wall = db.get_setting("wallpaper", "std") if db.user_count() else "std"
+    ctx["wall"] = wall if wall in WALLPAPERS else "std"
+    ctx["ui_style"] = ui_style if ui_style in ("glass", "nothing", "frost", "peach", "folio", "desktop") else "glass"
     if ctx["user"] and name in ("dashboard.html", "platform.html"):
         running = _collect_lock.locked() or any(not t.done() for t in _bg_tasks)
         waiting = request.session.get("await_collect")
@@ -187,6 +195,13 @@ def render(request: Request, name: str, ctx: dict | None = None, status: int = 2
         interval = max(15, int(db.get_setting("interval_min", str(config.INTERVAL_MIN_DEFAULT))))
         last = int(db.get_setting("last_collect_ts", "0") or 0)
         nxt = max(0, int((last + interval * 60 - time.time()) / 60)) if last else None
+        if ctx["ui_style"] == "desktop":   # Dock + Menüleisten-Uhr nur für den Desktop-Stil
+            conf = db.configured_platforms()
+            ctx["dock"] = [{"id": k, "short": v["short"], "color": v["color"], "name": v["name"],
+                            "icon": icons.available(k)} for k, v in PLATFORMS.items() if k in conf]
+            n = dt.datetime.now(stats.TZ)
+            ctx["clock"] = (f'{["Mo.", "Di.", "Mi.", "Do.", "Fr.", "Sa.", "So."][n.weekday()]} {n.day}. '
+                            f'{["Jan.", "Feb.", "März", "Apr.", "Mai", "Juni", "Juli", "Aug.", "Sep.", "Okt.", "Nov.", "Dez."][n.month - 1]} {n:%H:%M}')
         ctx["status"] = {"interval": interval, "next_in": nxt, "mirror": db.is_mirror(),
                          "frac": round(1 - nxt / interval, 3) if nxt is not None else 0}
         try:
@@ -320,6 +335,10 @@ async def scheduler():
             await collect_all()
         except Exception:
             log.exception("Fehler im Abruf-Zyklus")
+        try:   # App-Symbole fürs Dock: fehlende holen, alle 30 Tage erneuern
+            await run_in_threadpool(icons.refresh)
+        except Exception:
+            log.exception("Fehler beim Laden der App-Symbole")
         minutes = 10 if db.is_mirror() else max(15, int(db.get_setting("interval_min", str(config.INTERVAL_MIN_DEFAULT))))
         await asyncio.sleep(minutes * 60)
 
@@ -624,6 +643,17 @@ async def dashboard(request: Request):
     months = ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August",
               "September", "Oktober", "November", "Dezember"]
     duino = next((p for p in data["platforms"] if p["id"] == "duinocoin"), None)
+    # Folio (Wealthfolio-Look): großer Verlauf über wählbaren Zeitraum
+    frange = request.query_params.get("range", "3m")
+    fdays_n = {"1w": 7, "1m": 30, "3m": 90, "1y": 365}.get(frange)
+    if not fdays_n:
+        frange, fdays_n = "3m", 90
+    fdays = sorted(data["heat"])[-fdays_n:]
+    fvals = [data["heat"][d] for d in fdays]
+    # Begrüßung: nur beim „Öffnen“ der App (erster Aufruf oder > 30 Min. nicht da gewesen)
+    seen = request.session.get("seen", 0)
+    intro = not isinstance(seen, (int, float)) or time.time() - seen > 1800
+    request.session["seen"] = int(time.time())
     try:
         achievements.evaluate(data)
     except Exception:
@@ -637,6 +667,10 @@ async def dashboard(request: Request):
         "greeting": greeting,
         "today_str": f"{weekdays[now.weekday()]}, {now.day}. {months[now.month - 1]}",
         "bar_svg": charts.bar_chart(data["chart"]),
+        "folio_svg": charts.folio_area(fdays, fvals),
+        "folio_range": frange,
+        "folio_gain": sum(fvals),
+        "intro": intro,
         "line_svg": charts.line_compare(data["chart"]),
         "heat_svg": charts.heatmap(data["heat"]),
         "hero_svg": charts.hero_spark(data["hero_spark"]),
@@ -932,6 +966,9 @@ async def settings_page(request: Request):
         "theme": db.get_setting("theme", "auto"),
         "eur_rate": float(db.get_setting("eur_rate", "0") or 0),
         "eur_rate_ts": int(db.get_setting("eur_rate_ts", "0") or 0),
+        "walls": {k: v for k, v in WALLPAPERS.items() if k != "photo" or wallpaper.current()},
+        "photo": wallpaper.current(),
+        "presets": wallpaper.PRESETS,
         "mirror": mirror.mirror_config(),
         "mirror_ok": int(db.get_setting("mirror_last_ok", "0") or 0),
         "mirror_err": db.get_setting("mirror_error", ""),
@@ -1055,10 +1092,14 @@ async def settings_save(request: Request):
             if theme not in ("auto", "dark", "light"):
                 raise ValueError
             style = form.get("style", "glass")
-            if style not in ("glass", "nothing", "frost", "peach"):
+            if style not in ("glass", "nothing", "frost", "peach", "folio", "desktop"):
+                raise ValueError
+            wall = form.get("wall", "std")
+            if wall not in WALLPAPERS:
                 raise ValueError
             db.set_setting("theme", theme)
             db.set_setting("ui_style", style)
+            db.set_setting("wallpaper", wall)
             db.set_setting("currency", cur)
             msg = "Einstellungen gespeichert."
             if cur == "EUR":
@@ -1212,6 +1253,89 @@ async def api_mirror(request: Request):
     return Response(body, media_type="application/octet-stream", headers={"cache-control": "no-store"})
 
 
+async def wallpaper_save(request: Request):
+    """Foto-Hintergrund setzen: fertige Auswahl, Link aus dem Internet oder hochgeladene Datei."""
+    user = current_user(request)
+    if not user:
+        return redirect("/login")
+    origin = request.headers.get("origin")
+    if origin and origin != "null" and not _origin_ok(request, origin):
+        return forbidden()
+    try:
+        size = int(request.headers.get("content-length", ""))
+    except ValueError:
+        return forbidden()
+    if size > wallpaper.MAX_BYTES + 65536:
+        flash(request, "Das Bild ist größer als 15 MB.", "err")
+        return redirect("/settings#wallpaper")
+    try:
+        form = await request.form(max_files=1, max_fields=6, max_part_size=4096)
+    except Exception:
+        flash(request, "Upload fehlgeschlagen.", "err")
+        return redirect("/settings#wallpaper")
+    if not auth.csrf_ok(request.session, form.get("csrf")):
+        await form.close()
+        return forbidden()
+    key = f"wall:{user['id']}"
+    if wait := auth.throttle.try_acquire(key, global_=False):
+        await form.close()
+        flash(request, f"Zu viele Versuche. Bitte {wait//60+1} Min. warten.", "err")
+        return redirect("/settings#wallpaper")
+    src, up, link = form.get("src", ""), form.get("file"), str(form.get("url", ""))[:2000]
+    try:
+        if src in wallpaper.PRESETS:
+            data, k = await run_in_threadpool(wallpaper.download, wallpaper.preset_url(src))
+            origin_txt = wallpaper.PRESETS[src]["name"] + " · " + wallpaper.PRESETS[src]["credit"]
+        elif src == "url":
+            data, k = await run_in_threadpool(wallpaper.download, link)
+            origin_txt = urllib.parse.urlparse(link).hostname or "Link"
+        elif src == "file" and isinstance(up, UploadFile):
+            data = await up.read(wallpaper.MAX_BYTES + 1)
+            k = wallpaper.kind(data)
+            if len(data) > wallpaper.MAX_BYTES or not k:
+                raise wallpaper.WallError("Bitte ein JPEG-, PNG- oder WebP-Bild bis 15 MB wählen.")
+            origin_txt = "Eigenes Bild"
+        else:
+            raise wallpaper.WallError("Bitte ein Foto auswählen, einen Link einfügen oder eine Datei wählen.")
+        await run_in_threadpool(wallpaper.store, data, k, origin_txt)
+    except wallpaper.WallError as e:
+        flash(request, str(e), "err")
+        return redirect("/settings#wallpaper")
+    finally:
+        await form.close()
+    auth.throttle.success(key)
+    flash(request, "Neuer Hintergrund gesetzt.")
+    return redirect("/settings#wallpaper")
+
+
+async def wallpaper_image(request: Request):
+    if not current_user(request):
+        return Response(status_code=404)
+    cur = wallpaper.current()
+    if not cur:
+        return Response(status_code=404)
+    etag = f'"w{cur[1]}"'
+    hdr = {"cache-control": "private, no-cache", "etag": etag, "x-content-type-options": "nosniff",
+           "content-security-policy": "default-src 'none'; sandbox"}
+    if request.headers.get("if-none-match") == etag:
+        return Response(status_code=304, headers=hdr)
+    return Response((wallpaper.DIR / f"current.{cur[0]}").read_bytes(), media_type=wallpaper.TYPES[cur[0]], headers=hdr)
+
+
+async def app_icon(request: Request):
+    """Gespeichertes App-Symbol einer Plattform (nur angemeldet, nur feste IDs, nur Rasterbilder)."""
+    if not current_user(request):
+        return Response(status_code=404)
+    pf = request.path_params["pf"]
+    got = icons.available(pf) if pf in PLATFORMS else None
+    if not got:
+        return Response(status_code=404)
+    data = (icons.ICON_DIR / f"{pf}.{got[0]}").read_bytes()
+    return Response(data, media_type=icons.TYPES[got[0]],
+                    headers={"cache-control": "private, max-age=604800", "x-content-type-options": "nosniff",
+                             "content-security-policy": "default-src 'none'; sandbox"})
+
+
 async def healthz(request: Request):
     return PlainTextResponse("ok")
 
@@ -1251,8 +1375,11 @@ routes = [
     Route("/passkey/{step:str}", passkey_api, methods=["POST"]),
     Route("/collect", collect_now, methods=["POST"]),
     Route("/settings", settings_page),
+    Route("/settings/wallpaper", wallpaper_save, methods=["POST"]),
     Route("/settings/{what:str}", settings_save, methods=["POST"]),
     Route("/export.csv", export_csv),
+    Route("/icon/{pf}", app_icon),
+    Route("/wallpaper", wallpaper_image),
     Route("/healthz", healthz),
     Route("/live.css", live_css),
     Route("/api/widget", api_widget),

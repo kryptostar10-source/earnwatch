@@ -97,7 +97,18 @@
         <option value="nothing" {% if ui_style == 'nothing' %}selected{% endif %}>Dot (schwarz-weiß, Punktraster, roter Akzent)</option>
         <option value="frost" {% if ui_style == 'frost' %}selected{% endif %}>Frost (helles Milchglas, Ring-Diagramm – immer hell)</option>
         <option value="peach" {% if ui_style == 'peach' %}selected{% endif %}>Peach (warmes Orange, Creme-Glas, Kurven – immer hell)</option>
+        <option value="folio" {% if ui_style == 'folio' %}selected{% endif %}>Folio (wie Wealthfolio, Apple-Glas, großer Verlauf – hell &amp; dunkel)</option>
+        <option value="desktop" {% if ui_style == 'desktop' %}selected{% endif %}>Desktop (wie macOS: Menüleiste, Dock, Fenster)</option>
       </select></label>
+    <fieldset class="wallpick">
+      <legend>Hintergrund <span class="muted small">(für Folio und Desktop)</span></legend>
+      <div class="walls">
+        {% for k, name in walls.items() %}
+        <label class="wall"><input type="radio" name="wall" value="{{ k }}" {% if wall == k %}checked{% endif %}>
+          <span class="wsw w-{{ k }}" aria-hidden="true"></span><span class="wname">{{ name }}</span></label>
+        {% endfor %}
+      </div>
+    </fieldset>
     <label>Design (hell/dunkel)
       <select name="theme" class="block">
         <option value="auto" {% if theme == 'auto' %}selected{% endif %}>Automatisch (wie iPhone/PC)</option>
@@ -194,6 +205,36 @@
   <p class="hint">Das Backup-Passwort gut merken – ohne kann niemand die Datei öffnen, auch du nicht.</p>
 </section>
 </div>
+
+<section class="card setcard" id="wallpaper">
+  <header><h2>Foto als Hintergrund</h2>{% if photo and wall == 'photo' %}<span class="pill ok">aktiv</span>{% endif %}</header>
+  <p class="muted small">Für die Stile Folio und Desktop. Dein Server lädt das Bild einmal herunter und speichert es bei dir.</p>
+  {% if photo %}<div class="wallnow"><img src="/wallpaper?v={{ photo[1] }}" alt="Aktuelles Hintergrundfoto" width="160" height="100"><span class="small">Aktuell: <b>{{ photo[2] }}</b><br><span class="muted">{% if wall == 'photo' %}Wird gerade als Hintergrund benutzt.{% else %}Unter „Hintergrund“ → „Foto“ wählen, um es wieder zu benutzen.{% endif %}</span></span></div>{% endif %}
+  <form method="post" action="/settings/wallpaper" enctype="multipart/form-data" class="wallform">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <div class="acctabs">
+      <input type="radio" class="acc-r r-new" name="wtab" id="wt-pre" checked>
+      <input type="radio" class="acc-r r-login" name="wtab" id="wt-own">
+      <div class="acc-bar"><label for="wt-pre" class="l-new">Foto-Auswahl</label><label for="wt-own" class="l-login">Link oder eigenes Bild</label></div>
+      <div class="acc-pane acc-new">
+        <div class="presets">
+          {% for pid, pr in presets.items() %}
+          <label class="preset"><input type="radio" name="src" value="{{ pid }}"><span class="pname"><b>{{ pr.name }}</b><small>{{ pr.credit }}</small></span></label>
+          {% endfor %}
+        </div>
+        <p class="hint">Gemeinfreie Fotos von Wikimedia Commons in 2560 px.</p>
+      </div>
+      <div class="acc-pane acc-login">
+        <label class="preset"><input type="radio" name="src" value="url"><span class="pname"><b>Bild aus dem Internet</b><small>Rechtsklick aufs Bild → „Bildadresse kopieren“ → hier einfügen</small></span></label>
+        <input name="url" type="url" maxlength="2000" placeholder="https://…/bild.jpg" spellcheck="false" class="mono">
+        <label class="preset"><input type="radio" name="src" value="file"><span class="pname"><b>Eigenes Foto hochladen</b><small>JPEG, PNG oder WebP, bis 15 MB</small></span></label>
+        <input name="file" type="file" accept="image/jpeg,image/png,image/webp" class="fileinput">
+        <p class="hint">Achte darauf, dass du das Bild verwenden darfst. Links ins eigene Netz sind aus Sicherheitsgründen gesperrt.</p>
+      </div>
+    </div>
+    <button class="btn primary sm">Als Hintergrund setzen</button>
+  </form>
+</section>
 
 <section class="card setcard" id="mirror">
   <header><h2>Spiegel (andere Installation anzeigen)</h2>
