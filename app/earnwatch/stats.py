@@ -84,6 +84,16 @@ def _is_payout(before: float, after: float, min_payout: float) -> bool:
     return bool(min_payout) and drop >= min_payout * 0.9
 
 
+def _is_reversal(pay: dict, b0: float, t1: int, b1: float) -> bool:
+    """Steigt der Stand innerhalb von 7 Tagen wieder auf (fast) den Wert vor der Auszahlung?"""
+    before, after = pay["before"], pay["after"]
+    if t1 - pay["ts"] > 7 * 86400:
+        return False
+    if b0 > after + (before - after) * 0.5:      # Stand war gar nicht mehr unten
+        return False
+    return abs(b1 - before) <= max(0.10, before * 0.05)
+
+
 def compute(view: str = "day", period: str = "week") -> dict:
     rows = db.snapshots()
     by_pf: dict[str, list] = defaultdict(list)
@@ -98,14 +108,24 @@ def compute(view: str = "day", period: str = "week") -> dict:
         on_drop = PLATFORMS.get(pf, {}).get("on_drop", "payout")
         min_pay = PLATFORMS.get(pf, {}).get("min_payout") or 0
         d = defaultdict(float)
+        last_pay = None   # letzte erkannte Auszahlung dieser Plattform (für Rücksprünge)
         for (t0, b0), (t1, b1) in zip(pts, pts[1:]):
             delta = b1 - b0
             if delta >= 0:
-                d[day_of(t1)] += delta
+                if last_pay and _is_reversal(last_pay, b0, t1, b1):
+                    # Stand springt zurück auf den Wert vor der „Auszahlung“ (z. B. Auszahlung erst in Bearbeitung,
+                    # abgelehnt oder kurz falscher Wert vom Anbieter) → war keine Auszahlung, Rücksprung ist kein Verdienst.
+                    payouts.remove(last_pay["entry"])
+                    d[day_of(t1)] += (b1 - last_pay["before"]) - (b0 - last_pay["after"])
+                    last_pay = None
+                else:
+                    d[day_of(t1)] += delta
             elif on_drop == "reset":
                 d[day_of(t1)] += max(b1, 0)   # neue Epoche: Stand beginnt wieder bei 0
             elif _is_payout(b0, b1, min_pay):
-                payouts.append({"platform": pf, "ts": t1, "amount": -delta})
+                entry = {"platform": pf, "ts": t1, "amount": -delta}
+                payouts.append(entry)
+                last_pay = {"entry": entry, "before": b0, "after": b1, "ts": t1}
             else:
                 # Kleine Korrektur des Anbieters (z. B. EarnApp verrechnet Traffic nach) – keine Auszahlung.
                 # Als Minus am selben Tag verbuchen, sonst würde das Geld beim Wiederanstieg doppelt zählen.
