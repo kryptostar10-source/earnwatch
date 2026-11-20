@@ -158,9 +158,17 @@
         <h2>Duino-Coin Miner</h2>
         <span class="pill duco">{{ duino.info.miner|default(0) }} online</span>
       </div>
-      <p class="minerhead"><b class="mono">{{ '%.1f'|format((duino.info.hashrate|default(0))/1000) }}</b> <span class="muted small">kH/s gesamt · {{ amount(duino.balance, 'DUCO') }}</span></p>
+      <p class="minerhead"><b class="mono">{{ hashfmt(duino.info.hashrate) }}</b> <span class="muted small">gesamt · {{ amount(duino.balance, 'DUCO') }}</span></p>
       {{ miners_svg }}
     </div>
+    {% endif %}
+    {% if dgb %}
+    <a class="card sm dgbcard" href="/p/digibyte">
+      <div class="cardhead"><h2>DigiByte Miner</h2><span class="pill dgb">{{ dgb.info.online|default(0) }} / {{ dgb.info.geraete|default(0) }} online</span></div>
+      <p class="minerhead"><b class="mono">{{ hashfmt(dgb.info.hashrate) }}</b> <span class="muted small">jetzt · Ø 24 h {{ hashfmt(dgb.info.hash_24h) }}</span></p>
+      {{ dgb_miners_svg }}
+      <p class="muted small dgbfoot">{{ amount(dgb.balance, 'DGB') }}{% if dgb.fac %} ≈ {{ money(dgb.balance * dgb.fac) }}{% endif %} offen · {{ dgb.info.shares_ok|default(0) }} Shares heute</p>
+    </a>
     {% endif %}
 
     <a class="card sm achcard" href="/erfolge">
@@ -208,7 +216,7 @@
         <span class="badge" data-pf="{{ p.id }}">{{ p.short }}</span>
         <div class="ttl">
           <b>{{ p.name }} <span class="chev" aria-hidden="true">›</span></b>
-          <span>{% if p.lifetime %}an JumpTask gesendet{% elif p.manual %}manuell eingetragen{% elif p.info.modus is defined %}Modus: {{ p.info.modus }}{% elif p.unit == 'DUCO' and p.fac %}≈ {{ money(p.balance * p.fac) if p.balance is not none else '–' }}{% elif p.unit == 'Punkte' %}Punkte{% if p.info.art is defined %} · {{ p.info.art }}{% endif %}{% else %}{{ p.unit }}{% endif %}</span>
+          <span>{% if p.lifetime %}an JumpTask gesendet{% elif p.manual %}manuell eingetragen{% elif p.info.modus is defined %}Modus: {{ p.info.modus }}{% elif p.unit in ('DUCO', 'DGB') and p.fac %}≈ {{ money(p.balance * p.fac) if p.balance is not none else '–' }}{% elif p.unit == 'Punkte' %}Punkte{% if p.info.art is defined %} · {{ p.info.art }}{% endif %}{% else %}{{ p.unit }}{% endif %}</span>
         </div>
         </a>
         {% if not p.configured %}<span class="pill dim">aus</span>

@@ -43,6 +43,7 @@ BASE = Path(__file__).parent
 templates = Jinja2Templates(directory=str(BASE / "templates"))
 templates.env.globals["money"] = charts.money
 templates.env.globals["amount"] = charts.amount
+templates.env.globals["hashfmt"] = charts.hashfmt
 templates.env.globals["umbrel"] = config.UMBREL
 templates.env.globals["cur_label"] = lambda: "Euro" if charts.currency()[0] == "EUR" else "USD"
 
@@ -283,9 +284,12 @@ async def collect_all() -> list:
     async with _collect_lock:
         db.set_setting("last_collect_ts", str(int(time.time())))
         runs_before = db.last_runs()
+        hidden = db.hidden_platforms()
         for pf, meta in PLATFORMS.items():
             if meta.get("collect") is None:
                 continue  # wird von einer anderen Plattform mit abgerufen (z. B. JumpTask)
+            if pf in hidden:
+                continue  # ausgeblendet: nicht abrufen
             creds = db.load_credentials(pf)
             if not creds or not any(creds.values()):
                 creds = db.load_credentials(meta["fallback_creds"]) if meta.get("fallback_creds") else None
@@ -643,6 +647,7 @@ async def dashboard(request: Request):
     months = ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August",
               "September", "Oktober", "November", "Dezember"]
     duino = next((p for p in data["platforms"] if p["id"] == "duinocoin"), None)
+    dgb = next((p for p in data["platforms"] if p["id"] == "digibyte" and p["configured"]), None)
     # Folio (Wealthfolio-Look): großer Verlauf über wählbaren Zeitraum
     frange = request.query_params.get("range", "3m")
     fdays_n = {"1w": 7, "1m": 30, "3m": 90, "1y": 365}.get(frange)
@@ -680,6 +685,8 @@ async def dashboard(request: Request):
         "donut_legend": charts.donut_legend(data["share"]),
         "miners_svg": charts.miners(duino["info"].get("rigs", [])) if duino and duino["configured"] else None,
         "duino": duino,
+        "dgb": dgb,
+        "dgb_miners_svg": charts.miners(dgb["info"].get("rigs", []), color="#2563EB") if dgb else None,
         "sparks": {p["id"]: charts.spark(p["spark"], p["color"]) for p in data["platforms"]},
         "names": {k: v["name"] for k, v in PLATFORMS.items()},
         "units": {k: v["unit"] for k, v in PLATFORMS.items()},
@@ -693,6 +700,9 @@ async def platform_page(request: Request):
     pf = request.path_params["pf"]
     if pf not in PLATFORMS:   # nur bekannte Plattformen, alles andere -> 404
         return PlainTextResponse("Nicht gefunden", status_code=404)
+    if pf in db.hidden_platforms():
+        flash(request, f"{PLATFORMS[pf]['name']} ist ausgeblendet – unter Einstellungen wieder einblenden.", "warn")
+        return redirect(f"/settings#{pf}")
     view = request.query_params.get("view", "day")
     if view not in ("day", "week", "month", "year"):
         view = "day"
@@ -707,7 +717,9 @@ async def platform_page(request: Request):
         "area_svg": charts.balance_area(det["balance"], p["color"], p["unit"]),
         "wd_svg": charts.weekday_bars(det["weekday"], p["color"], p["unit"]),
         "heat_svg": charts.heatmap(det["heat"], p["unit"]),
-        "miners_svg": charts.miners(p["info"].get("rigs", [])) if pf == "duinocoin" and p["configured"] else None,
+        "miners_svg": charts.miners(p["info"].get("rigs", []), color=PLATFORMS[pf]["color"])
+                      if pf in ("duinocoin", "digibyte") and p["configured"] else None,
+        "hash_svg": charts.hash_spark(p["info"].get("hist", [])) if pf == "digibyte" and p["configured"] else None,
         "others": [(k, v["name"], v["short"]) for k, v in PLATFORMS.items()],
     })
 
@@ -945,7 +957,7 @@ async def settings_page(request: Request):
     user = current_user(request)
     if not user:
         return redirect("/login")
-    conf = db.configured_platforms()
+    conf = db.configured_platforms(include_hidden=True)
     return render(request, "settings.html", {
         "user": user,
         "twofa": bool(db.totp_secret(user)),
@@ -966,6 +978,7 @@ async def settings_page(request: Request):
         "theme": db.get_setting("theme", "auto"),
         "eur_rate": float(db.get_setting("eur_rate", "0") or 0),
         "eur_rate_ts": int(db.get_setting("eur_rate_ts", "0") or 0),
+        "hidden": db.hidden_platforms(),
         "walls": {k: v for k, v in WALLPAPERS.items() if k != "photo" or wallpaper.current()},
         "photo": wallpaper.current(),
         "presets": wallpaper.PRESETS,
@@ -1051,6 +1064,14 @@ async def settings_save(request: Request):
         else:
             db.save_credentials(what, data)
             flash(request, f"{meta['name']}: Zugang verschlüsselt gespeichert.")
+    elif what == "visibility":
+        pf = form.get("platform", "")
+        if pf in PLATFORMS:
+            hide = form.get("hide") == "1"
+            db.set_hidden(pf, hide)
+            flash(request, f"{PLATFORMS[pf]['name']} " + ("ausgeblendet – wird nicht mehr abgerufen und nirgends angezeigt. Daten bleiben gespeichert."
+                                                       if hide else "wieder eingeblendet."))
+            return redirect(f"/settings#{pf}")
     elif what == "delete":
         pf = form.get("platform", "")
         if pf in PLATFORMS:

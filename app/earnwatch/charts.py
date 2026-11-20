@@ -63,6 +63,8 @@ def amount(v: float | None, unit: str) -> str:
         return money(v)
     if unit == "DUCO":
         return f"{v:,.2f} DUCO" if abs(v) >= 10 else f"{v:.3f} DUCO"
+    if unit == "DGB":
+        return f"{v:,.2f} DGB" if abs(v) >= 10 else f"{v:.4f} DGB"
     return f"{v:,.0f} Pkt" if abs(v) >= 100 else f"{v:,.1f} Pkt"
 
 
@@ -148,7 +150,17 @@ def share_bar(share: list[dict], width=400, height=10) -> Markup:
     return Markup("".join(out))
 
 
-def miners(rigs: list[dict], width=320) -> Markup:
+def hashfmt(h: float | None) -> str:
+    """Hashrate lesbar: H/s → kH/s → MH/s → GH/s → TH/s."""
+    h = float(h or 0)
+    for unit in ("H/s", "kH/s", "MH/s", "GH/s", "TH/s"):
+        if h < 1000 or unit == "TH/s":
+            return f"{h:.0f} {unit}" if unit == "H/s" else f"{h:.2f} {unit}" if h < 10 else f"{h:.1f} {unit}"
+        h /= 1000
+    return f"{h:.1f} PH/s"
+
+
+def miners(rigs: list[dict], width=320, color="#fb923c") -> Markup:
     if not rigs:
         return Markup('<p class="muted small">Keine Miner online.</p>')
     row = 22
@@ -158,12 +170,27 @@ def miners(rigs: list[dict], width=320) -> Markup:
     for i, r in enumerate(rigs):
         y = i * row
         bw = (width - 170) * r["hashrate"] / vmax
-        out.append(f'<text x="0" y="{y + 14}" class="mlabel">{escape(r["name"])}</text>')
+        off = r.get("active") is False
+        out.append(f'<text x="0" y="{y + 14}" class="mlabel{" moff" if off else ""}">{escape(r["name"])}</text>')
         out.append(f'<rect x="96" y="{y + 7}" width="{width - 170}" height="6" rx="3" class="mtrack"/>')
-        out.append(f'<rect x="96" y="{y + 7}" width="{max(bw, 3):.1f}" height="6" rx="3" fill="#fb923c"/>')
-        out.append(f'<text x="{width}" y="{y + 14}" class="mval" text-anchor="end">{r["hashrate"] / 1000:.1f} kH/s</text>')
+        out.append(f'<rect x="96" y="{y + 7}" width="{max(bw, 3):.1f}" height="6" rx="3" fill="{escape(color)}"'
+                   f'{" opacity=\".35\"" if off else ""}/>')
+        out.append(f'<text x="{width}" y="{y + 14}" class="mval" text-anchor="end">{escape(hashfmt(r["hashrate"]))}</text>')
     out.append("</svg>")
     return Markup("".join(out))
+
+
+def hash_spark(hist: list, width=320, height=64) -> Markup:
+    """Hashrate-Verlauf des Pools (letzte Stunden) als ruhige Linie mit Fläche."""
+    pts = [(float(t), float(v)) for t, v in hist if v is not None]
+    if len(pts) < 2:
+        return Markup("")
+    t0, t1 = pts[0][0], pts[-1][0] or 1
+    vmax = max(v for _, v in pts) or 1
+    xy = [((t - t0) / ((t1 - t0) or 1) * width, height - 4 - v / vmax * (height - 10)) for t, v in pts]
+    line = _smooth(xy)
+    return Markup(f'<svg class="hspark" viewBox="0 0 {width} {height}" preserveAspectRatio="none" role="img" aria-label="Hashrate-Verlauf">'
+                  f'<path class="hsa" d="{line} L{width},{height} L0,{height} Z"/><path class="hsl" d="{line}"/></svg>')
 
 
 def line_chart(series: dict[str, list], width=860, height=200) -> Markup:

@@ -26,12 +26,13 @@
   <div class="cardhead sectionhead"><h2>Plattformen</h2><span class="small muted">Zum Ändern einfach neu eingeben</span></div>
   <div class="grid3">
   {% for pf, meta in platforms.items() if meta.fields %}
-  <section class="card sm setcard" id="{{ pf }}">
+  <section class="card sm setcard{% if pf in hidden %} ishidden{% endif %}" id="{{ pf }}">
     <header>
       <span class="badge" data-pf="{{ pf }}">{{ meta.short }}</span>
       <h2>{{ meta.name }}</h2>
       {% set ex = exp.get(pf, 0) %}
-      {% if pf in configured and ex and ex < now %}<span class="pill err">abgelaufen</span>
+      {% if pf in hidden and pf in configured %}<span class="pill">ausgeblendet</span>
+      {% elif pf in configured and ex and ex < now %}<span class="pill err">abgelaufen</span>
       {% elif pf in configured and ex and ex - now < 5 * 86400 %}<span class="pill warn">läuft in {{ ((ex - now) / 86400)|round(0, 'ceil')|int }} T. ab</span>
       {% elif pf in configured %}<span class="pill ok">gespeichert{% if ex %} · bis {{ ex|dtfmt }}{% endif %}</span>
       {% elif meta.fallback_creds and meta.fallback_creds in configured %}<span class="pill dim">nutzt {{ platforms[meta.fallback_creds].name }}-Zugang</span>
@@ -68,6 +69,11 @@
     </div>
     {% endif %}
     {% if pf in configured %}
+    <form method="post" action="/settings/visibility" class="hideform">
+      <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="platform" value="{{ pf }}">
+      <input type="hidden" name="hide" value="{{ '0' if pf in hidden else '1' }}">
+      <button class="btn sm">{{ 'Wieder einblenden' if pf in hidden else 'Ausblenden' }}</button>
+    </form>
     <form method="post" action="/settings/delete" class="delform">
       <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="platform" value="{{ pf }}">
       <button class="btn danger sm">Zugang löschen</button>

@@ -96,9 +96,11 @@ def _is_reversal(pay: dict, b0: float, t1: int, b1: float) -> bool:
 
 def compute(view: str = "day", period: str = "week") -> dict:
     rows = db.snapshots()
+    hidden = db.hidden_platforms()   # ausgeblendete Plattformen tauchen nirgends auf
     by_pf: dict[str, list] = defaultdict(list)
     for r in rows:
-        by_pf[r["platform"]].append((r["ts"], r["balance"]))
+        if r["platform"] not in hidden:
+            by_pf[r["platform"]].append((r["ts"], r["balance"]))
 
     today = dt.datetime.now(TZ).date()
     daily: dict[str, dict[dt.date, float]] = {}
@@ -196,6 +198,8 @@ def compute(view: str = "day", period: str = "week") -> dict:
     totals = {k: 0.0 for k in ("balance", "today", "week", "month", "year", "all", "forecast", "paid_out",
                                "prev_today", "prev_week", "prev_month", "prev_year")}
     for pf, meta in PLATFORMS.items():
+        if pf in hidden:
+            continue
         pts = by_pf.get(pf, [])
         fac = usd_factor(pf)
         bal = pts[-1][1] if pts else None

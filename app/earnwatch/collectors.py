@@ -468,6 +468,72 @@ def collect_duinocoin(creds: dict) -> Result:
         return Result("duinocoin", None, str(e))
 
 
+# --- DigiByte-Mining-Pool HMPool (digi.hmpool.io) --------------------------
+# Öffentliche Pool-Daten zur DGB-Adresse – kein Passwort nötig. Hashrate kommt in H/s.
+HMPOOL_API = "https://digi.hmpool.io/api/miner/"
+_DGB_RE = re.compile(r"^(dgb1[02-9ac-hj-np-z]{20,90}|[DS][1-9A-HJ-NP-Za-km-z]{25,40})$")
+
+
+def _dgb_amount(v) -> float:
+    """Beträge der Pool-API: DGB, bei sehr großen Werten Satoshi (1 DGB = 100 000 000)."""
+    x = float(v or 0)
+    return x / 1e8 if x > 1e7 else x
+
+
+def collect_digibyte(creds: dict) -> Result:
+    addr = creds.get("address", "").strip()
+    if not _DGB_RE.match(addr):
+        return Result("digibyte", None, "Ungültige DigiByte-Adresse (beginnt mit dgb1…, D… oder S…)")
+    op = _opener()
+    try:
+        st, raw, _ = _request(op, HMPOOL_API + urllib.parse.quote(addr))
+        if st == 404:
+            raise CollectError("Adresse beim Pool unbekannt – läuft der Miner schon?")
+        if st != 200:
+            raise CollectError(f"Pool-Abruf fehlgeschlagen (HTTP {st})")
+        d = _json(raw)
+        if "pending_balance" not in d:
+            raise CollectError("Feld pending_balance fehlt – API geändert?")
+        bal = _dgb_amount(d.get("pending_balance")) + _dgb_amount(d.get("immature_balance"))
+        workers = [w for w in (d.get("workers") or []) if isinstance(w, dict)][:40]
+        rigs = [{"name": str(w.get("name") or "Miner")[:24], "hashrate": float(w.get("hashrate") or 0),
+                 # active=None heißt beim Pool „noch kein Status“ – mit Hashrate zählt er als online
+                 "active": w.get("active") is True or (w.get("active") is None and float(w.get("hashrate") or 0) > 0),
+                 "valid": int(w.get("valid_shares") or 0),
+                 "last": int(w.get("last_share") or 0)} for w in workers]
+        online = sum(1 for r in rigs if r["active"])
+        day = (d.get("share_stats") or {}).get("day") or {}
+        hist = [[int(h.get("timestamp") or 0), float(h.get("hashrate") or 0)]
+                for h in (d.get("hashrate_history") or [])[-96:] if isinstance(h, dict)]
+        lp = d.get("last_pool_block") or {}
+        price = None
+        try:   # DGB-Kurs (öffentlich, ohne Schlüssel)
+            st2, raw2, _ = _request(op, "https://api.coingecko.com/api/v3/simple/price?ids=digibyte&vs_currencies=usd")
+            if st2 == 200:
+                price = float((_json(raw2).get("digibyte") or {}).get("usd") or 0) or None
+        except (CollectError, ValueError, TypeError):
+            pass
+        info = {
+            "hashrate": float(d.get("current_hashrate") or 0),
+            "hash_1h": float(d.get("avg_hashrate_1h") or 0),
+            "hash_24h": float(d.get("avg_hashrate_24h") or 0),
+            "rigs": rigs, "miner": online, "geraete": len(rigs), "online": online,
+            "shares_ok": int(day.get("valid") or d.get("valid_shares") or 0),
+            "shares_bad": int(day.get("invalid") or 0) + int(day.get("stale") or 0),
+            "best_share": float(d.get("best_share_difficulty") or 0),
+            "blocks": int(d.get("blocks_found") or 0),
+            "paid_total": _dgb_amount(d.get("total_paid")),
+            "pending": _dgb_amount(d.get("pending_balance")),
+            "immature": _dgb_amount(d.get("immature_balance")),
+            "min_payout": float(d.get("min_payout_sats") or 0) / 1e8,
+            "pool_block": str(lp.get("height") or "")[:12],
+            "hist": hist,
+        }
+        return Result("digibyte", round(bal, 8), price_usd=price, info=info)
+    except CollectError as e:
+        return Result("digibyte", None, str(e))
+
+
 # --- Pawns.app (IPRoyal) --------------------------------------------------
 PAWNS_API = "https://api.pawns.app/api/v1"
 _pawns_token_cache: dict[str, str] = {}
@@ -632,6 +698,14 @@ PLATFORMS = {
             {"key": "username", "label": "Duino-Coin-Benutzername", "type": "text", "required": True},
         ],
         "hint": "Nur der Benutzername – Duino-Coin-Kontostände sind öffentlich, es wird kein Passwort gebraucht. Zeigt auch deine aktiven Miner (z. B. ESP32) und die Hashrate.",
+    },
+    "digibyte": {
+        "name": "DigiByte (HMPool)", "color": "#2563EB", "short": "DG", "unit": "DGB", "usd": "price", "on_drop": "payout",
+        "collect": collect_digibyte, "dashboard": "https://digi.hmpool.io/", "min_payout": None,
+        "fields": [
+            {"key": "address", "label": "DigiByte-Adresse (dgb1…)", "type": "text", "required": True},
+        ],
+        "hint": "Nur deine DGB-Adresse, mit der du bei digi.hmpool.io minst – die Pool-Daten sind öffentlich, kein Passwort nötig. Zeigt Guthaben, Hashrate, Miner, Shares und Auszahlungen.",
     },
     "pawns": {
         "name": "Pawns.app", "color": "#F472B6", "short": "PA", "unit": "USD", "usd": True, "on_drop": "payout",

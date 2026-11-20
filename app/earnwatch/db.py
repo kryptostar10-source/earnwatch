@@ -250,15 +250,37 @@ def own_platforms() -> dict[str, int]:
         return {r["platform"]: r["updated"] for r in c.execute("SELECT platform, updated FROM credentials")}
 
 
-def configured_platforms() -> dict[str, int]:
+def hidden_platforms() -> set[str]:
+    """Plattformen, die der Nutzer ausgeblendet hat (Zugang bleibt gespeichert, aber kein Abruf, keine Anzeige)."""
+    import json
+    try:
+        d = json.loads(get_setting("hidden_platforms", "[]") or "[]")
+        return {str(x) for x in d if isinstance(x, str)} if isinstance(d, list) else set()
+    except (ValueError, TypeError):
+        return set()
+
+
+def set_hidden(platform: str, hidden: bool) -> None:
+    import json
+    h = hidden_platforms()
+    (h.add if hidden else h.discard)(platform)
+    set_setting("hidden_platforms", json.dumps(sorted(h)))
+
+
+def configured_platforms(include_hidden: bool = False) -> dict[str, int]:
     if is_mirror():   # im Spiegel kommen die eingerichteten Plattformen von der Quelle
         import json
         try:
             d = json.loads(get_setting("mirror_configured", "{}"))
-            return {str(k): int(v) for k, v in d.items()} if isinstance(d, dict) else {}
+            out = {str(k): int(v) for k, v in d.items()} if isinstance(d, dict) else {}
         except (ValueError, TypeError):
-            return {}
-    return own_platforms()
+            out = {}
+    else:
+        out = own_platforms()
+    if not include_hidden:
+        hid = hidden_platforms()
+        out = {k: v for k, v in out.items() if k not in hid}
+    return out
 
 
 def delete_credentials(platform: str) -> None:

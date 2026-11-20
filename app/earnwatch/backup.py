@@ -30,7 +30,7 @@ KDF = {"n": 2 ** 15, "r": 8, "p": 1}
 
 # Nur diese Einstellungen wandern mit. Gerätespezifisches (Container-Liste, letzter Abruf …) bleibt.
 SETTINGS = {"achievements", "currency", "duino_rigs", "interval_min", "notify_events", "notify_summary_hour",
-            "theme", "ui_style", "widget_token_hash", "widget_token_ts", "eur_rate", "eur_rate_ts"}
+            "theme", "ui_style", "wallpaper", "hidden_platforms", "widget_token_hash", "widget_token_ts", "eur_rate", "eur_rate_ts"}
 PF_RE = re.compile(r"^_?[a-z0-9]{1,32}$")
 DAY_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 USER_RE = re.compile(r"^[A-Za-z0-9]{3,32}$")

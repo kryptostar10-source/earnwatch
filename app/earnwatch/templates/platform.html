@@ -140,13 +140,35 @@
 
 {% if x.since %}{{ heatcard(heat_svg, x.streaks, p.id) }}{% endif %}
 
-{% if miners_svg %}
+{% if miners_svg %}{% if p.id == 'digibyte' %}<div class="grid2 minergrid">{% endif %}
 <section class="card sm">
-  <div class="cardhead"><h2>Miner</h2><span class="pill duco">{{ p.info.miner|default(0) }} online</span></div>
-  <p class="minerhead"><b class="mono">{{ '%.1f'|format((p.info.hashrate|default(0))/1000) }}</b> <span class="muted small">kH/s gesamt</span></p>
+  <div class="cardhead"><h2>Miner</h2><span class="pill {{ 'dgb' if p.id == 'digibyte' else 'duco' }}">{{ p.info.miner|default(0) }}{% if p.info.geraete is defined and p.id == 'digibyte' %} / {{ p.info.geraete }}{% endif %} online</span></div>
+  <p class="minerhead"><b class="mono">{{ hashfmt(p.info.hashrate) }}</b> <span class="muted small">gesamt</span></p>
   {{ miners_svg }}
 </section>
 {% endif %}
+
+{% if p.id == 'digibyte' and p.configured %}{% set i = p.info %}
+<section class="card sm poolcard">
+  <div class="cardhead"><h2>Mining-Pool</h2><a class="pill" href="https://digi.hmpool.io/" target="_blank" rel="noopener noreferrer">digi.hmpool.io ↗</a></div>
+  <dl class="poolstats">
+    <div><dt>Jetzt</dt><dd>{{ hashfmt(i.hashrate) }}</dd></div>
+    <div><dt>Ø 1 Std.</dt><dd>{{ hashfmt(i.hash_1h) }}</dd></div>
+    <div><dt>Ø 24 Std.</dt><dd>{{ hashfmt(i.hash_24h) }}</dd></div>
+  </dl>
+  {% if hash_svg %}<div class="hsparkwrap">{{ hash_svg }}<span class="muted small">Hashrate-Verlauf</span></div>{% endif %}
+  <ul class="facts">
+    <li><span>Shares heute</span><b>{{ i.shares_ok|default(0) }} gültig{% if i.shares_bad %} · <span class="bad">{{ i.shares_bad }} ungültig</span>{% endif %}</b></li>
+    <li><span>Bester Share</span><b>{{ '{:,.2f}'.format(i.best_share|default(0)) }}</b></li>
+    <li><span>Gefundene Blöcke</span><b>{{ i.blocks|default(0) }}{% if i.blocks %} 🎉{% endif %}</b></li>
+    <li><span>Offen (bestätigt / reift noch)</span><b>{{ amount(i.pending, 'DGB') }} / {{ amount(i.immature, 'DGB') }}</b></li>
+    <li><span>Insgesamt ausgezahlt</span><b>{{ amount(i.paid_total, 'DGB') }}</b></li>
+    {% if i.min_payout %}<li><span>Auszahlung ab</span><b>{{ amount(i.min_payout, 'DGB') }}</b></li>{% endif %}
+    {% if i.pool_block %}<li><span>Letzter Pool-Block</span><b class="mono">#{{ i.pool_block }}</b></li>{% endif %}
+  </ul>
+</section>
+{% endif %}
+{% if miners_svg and p.id == 'digibyte' %}</div>{% endif %}
 
 {% if p.manual %}
 <section class="card sm">
