@@ -332,12 +332,24 @@ def collect_earnapp(creds: dict) -> Result:
 GRASS_API = "https://api.getgrass.io"
 
 
+def _first_num(d: dict, keys) -> float | None:
+    for k in keys:
+        v = d.get(k)
+        try:
+            if v is not None and v != "":
+                return float(v)
+        except (TypeError, ValueError):
+            continue
+    return None
+
+
 def collect_grass(creds: dict) -> Result:
     token = creds.get("access_token", "").strip().strip('"')
     if not token:
         return Result("grass", None, "Kein Grass-Token hinterlegt")
     op = _opener()
     hdr = {"Authorization": token, "Origin": "https://app.grass.io", "Referer": "https://app.grass.io/"}
+    diag = {}   # nur Feldnamen + Zahlen – hilft, wenn Grass seine Schnittstelle ändert
     try:
         st, raw, _ = _request(op, f"{GRASS_API}/retrieveUser", headers=hdr)
         if st in (401, 403):
@@ -346,33 +358,41 @@ def collect_grass(creds: dict) -> Result:
             raise CollectError("Grass bremst gerade (Rate-Limit) – nächster Versuch beim nächsten Abruf")
         if st != 200:
             raise CollectError(f"Abruf fehlgeschlagen (HTTP {st})")
-        user = _json(raw).get("result", {}).get("data", {}) or {}
-        settled = float(user.get("totalPoints") or 0)
-        if settled > 0:
-            def devices():
-                st, raw, _ = _request(op, f"{GRASS_API}/activeDevices", headers=hdr)
-                if st != 200:
-                    return {}
-                n = len(_device_list((_json(raw).get("result") or {})))
-                return {"geraete": n, "online": n}
-            return Result("grass", round(settled, 2), info={"art": "abgerechnet", **_safe_devices(devices)})
+        body = _json(raw)
+        user = ((body.get("result") or {}).get("data") or body.get("data") or {}) if isinstance(body, dict) else {}
+        if not isinstance(user, dict):
+            user = {}
+        diag["user_felder"] = sorted(k for k in user.keys() if isinstance(k, str))[:40]
+        settled = _first_num(user, ("totalPoints", "points", "totalEarnings", "earnings", "totalRewards")) or 0.0
+        diag["totalPoints"] = settled
 
-        # Laufende Epoche: Punkte aus Geräte-Laufzeit schätzen (wie das Grass-Dashboard)
-        st, raw, _ = _request(op, f"{GRASS_API}/activeDevices", headers=hdr)
-        if st != 200:
-            raise CollectError(f"Geräte-Abruf fehlgeschlagen (HTTP {st})")
-        result = _json(raw).get("result")
-        if not isinstance(result, dict) or "data" not in result:
-            raise CollectError("Unerwartete Antwort von /activeDevices – API geändert?")
-        pts = 0.0
-        for d in result["data"] or []:
-            up, score, mult = float(d.get("aggUptime", 0)), float(d.get("ipScore", 0)), float(d.get("multiplier", 1))
+        st, raw2, _ = _request(op, f"{GRASS_API}/activeDevices", headers=hdr)
+        devs = []
+        if st == 200:
+            res = _json(raw2).get("result")
+            data = res.get("data") if isinstance(res, dict) else res
+            devs = [d for d in (data or []) if isinstance(d, dict)] if isinstance(data, list) else []
+        diag["geraete_http"] = st
+        diag["geraete"] = len(devs)
+        if devs:
+            diag["geraet_felder"] = sorted(k for k in devs[0].keys() if isinstance(k, str))[:40]
+        pts, active = 0.0, 0
+        for d in devs:
+            up = _first_num(d, ("aggUptime", "totalUptime", "uptime")) or 0.0
+            score = _first_num(d, ("ipScore", "score", "networkScore")) or 0.0
+            mult = _first_num(d, ("multiplier",)) or 1.0
             if up > 0 and score > 0:
                 pts += up / 3600 * 50 * (score / 100) * mult
-        n = len(result["data"] or [])
-        return Result("grass", round(pts, 2), info={"art": "geschätzt (laufende Epoche)", "geraete": n, "online": n})
+                active += 1
+        diag["geraete_mit_laufzeit"] = active
+        info = {"geraete": len(devs), "online": len(devs), "diag": diag}
+        if settled > 0:
+            return Result("grass", round(settled, 2), info={"art": "abgerechnet", **info})
+        if not devs and st != 200:
+            raise CollectError(f"Geräte-Abruf fehlgeschlagen (HTTP {st})")
+        return Result("grass", round(pts, 2), info={"art": "geschätzt (laufende Epoche)", **info})
     except CollectError as e:
-        return Result("grass", None, str(e))
+        return Result("grass", None, str(e), info={"diag": diag} if diag else {})
 
 
 # --- Bytelixir ------------------------------------------------------------

@@ -148,6 +148,22 @@
 </section>
 {% endif %}
 
+{% if p.id == 'grass' and p.info.diag is defined %}{% set g = p.info.diag %}
+<section class="card sm diagcard">
+  <details{% if not p.balance %} open{% endif %}>
+    <summary><b>Diagnose</b> <span class="muted small">– was Grass gerade liefert ({{ p.info.art|default('') }})</span></summary>
+    <ul class="facts">
+      <li><span>Punkte laut Konto (totalPoints)</span><b>{{ g.totalPoints|default('–') }}</b></li>
+      <li><span>Geräte bei Grass</span><b>{{ g.geraete|default(0) }}{% if g.geraete_http is defined and g.geraete_http != 200 %} · HTTP {{ g.geraete_http }}{% endif %}</b></li>
+      <li><span>davon mit Laufzeit + IP-Score</span><b>{{ g.geraete_mit_laufzeit|default(0) }}</b></li>
+      <li><span>Felder im Konto</span><b class="mono small">{{ (g.user_felder or [])|join(', ') or '–' }}</b></li>
+      <li><span>Felder je Gerät</span><b class="mono small">{{ (g.geraet_felder or [])|join(', ') or '–' }}</b></li>
+    </ul>
+    <p class="hint">Steht hier überall 0: Läuft Grass (App oder Browser-Erweiterung) gerade und ist verbunden? Grass rechnet Punkte erst am Ende einer Epoche ab. Schick bei Problemen einen Screenshot dieser Box.</p>
+  </details>
+</section>
+{% endif %}
+
 {% if p.id == 'digibyte' and p.configured %}{% set i = p.info %}
 <section class="card sm poolcard">
   <div class="cardhead"><h2>Mining-Pool</h2><a class="pill" href="https://digi.hmpool.io/" target="_blank" rel="noopener noreferrer">digi.hmpool.io ↗</a></div>
