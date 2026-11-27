@@ -82,6 +82,21 @@
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg>Abmelden</button>
       </form>
     </div>
+    {% if side_pcs %}
+    <div class="sidepcs" aria-label="Auslastung der Rechner">
+      <div class="sp-head">Rechner</div>
+      {% for pc in side_pcs %}
+      <div class="sp{% if not pc.online %} off{% endif %}">
+        <div class="sp-name"><span class="pcdot" aria-hidden="true"></span><b>{{ pc.name }}</b><span class="sp-st">{% if pc.online %}online{% elif pc.seen %}{{ pc.seen|ago }}{% else %}wartet{% endif %}</span></div>
+        {% if pc.seen %}
+        <div class="sp-row"><span>CPU</span><span class="pcbar"><i class="w{{ ((pc.cpu or 0) / 5)|round|int * 5 }}"></i></span><b>{{ '%.0f'|format(pc.cpu) ~ ' %' if pc.cpu is not none else '–' }}</b></div>
+        <div class="sp-row"><span>RAM</span><span class="pcbar ram"><i class="w{{ ((pc.mem_pct or 0) / 5)|round|int * 5 }}"></i></span><b>{{ '%.0f'|format(pc.mem_pct) ~ ' %' if pc.mem_pct is not none else '–' }}</b></div>
+        <div class="sp-net"><span>↓ {{ fmt_bits(pc.down) }}</span><span>↑ {{ fmt_bits(pc.up) }}</span></div>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
     <div class="status">
       <div class="row1"><span class="livedot"></span>{% if status.mirror %}Spiegel · Original alle {{ status.interval }} Min{% else %}Abruf aktiv · alle {{ status.interval }} Min{% endif %}</div>
       <progress max="1" value="{{ status.frac }}" aria-label="Zeit bis zum nächsten Abruf"></progress>

@@ -212,6 +212,20 @@
 </section>
 </div>
 
+<section class="card setcard" id="rechner">
+  <header><h2>Rechner überwachen</h2><span class="muted small">CPU · Arbeitsspeicher · Internet</span></header>
+  <p class="muted small">Ein kleines Programm auf deinem Windows-PC meldet jede Minute die Auslastung. Jeder Rechner bekommt einen eigenen Schlüssel; die Meldungen sind damit unterschrieben.</p>
+  {% if pcs %}<ul class="facts">{% for pc in pcs %}
+    <li><span>{{ pc.name }} <span class="muted small">seit {{ pc.created|dtfmt }}</span></span>
+      <form method="post" action="/settings/agent_del" class="inlineform"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="id" value="{{ pc.id }}"><button class="btn danger sm">Entfernen</button></form></li>
+  {% endfor %}</ul>{% endif %}
+  <form method="post" action="/settings/agent_add" class="row">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <label>Name des Rechners<input name="name" required maxlength="32" placeholder="z. B. Gaming-PC" pattern="[\w .\-äöüÄÖÜß]{1,32}"></label>
+    <button class="btn primary sm">Windows-PC hinzufügen</button>
+  </form>
+</section>
+
 <section class="card setcard" id="wallpaper">
   <header><h2>Foto als Hintergrund</h2>{% if photo and wall == 'photo' %}<span class="pill ok">aktiv</span>{% endif %}</header>
   <p class="muted small">Für die Stile Folio und Desktop. Dein Server lädt das Bild einmal herunter und speichert es bei dir.</p>

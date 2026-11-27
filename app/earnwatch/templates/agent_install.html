@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}Rechner hinzufügen · EarnWatch{% endblock %}
+{% block content %}
+<header class="pagehead"><div><div class="date"><a href="/settings#rechner">‹ Einstellungen</a></div><h1>„{{ pcname }}“ verbinden</h1></div></header>
+<section class="card setcard">
+  <div class="flash warn">Dieser Befehl wird <b>nur jetzt</b> angezeigt – er enthält den geheimen Schlüssel dieses Rechners. Nicht weitergeben.</div>
+  <ol class="howto big">
+    <li>Am Windows-PC: <b>Start</b> → „PowerShell“ eintippen → <b>Windows PowerShell</b> öffnen (keine Admin-Rechte nötig).</li>
+    <li>Den ganzen Block unten markieren (in das Feld klicken, <b>Strg + A</b>, <b>Strg + C</b>), in PowerShell mit Rechtsklick einfügen, <b>Enter</b>.</li>
+    <li>Es erscheint „EarnWatch-Agent läuft …“. Nach 1–2 Minuten zeigt das Dashboard den Rechner an.</li>
+  </ol>
+  <label>Befehl für PowerShell<textarea class="code" readonly rows="14" spellcheck="false">{{ cmd }}</textarea></label>
+  <p class="hint">Der PC meldet an <b class="mono">{{ base }}</b> – er muss diese Adresse erreichen (z. B. über Tailscale). Der Agent läuft unsichtbar und startet mit Windows.</p>
+  <details class="small"><summary>Später wieder entfernen</summary>
+    <p class="muted">In EarnWatch unter Einstellungen → Rechner auf „Entfernen“ klicken und am PC in PowerShell:</p>
+    <textarea class="code" readonly rows="3" spellcheck="false">{{ uninstall }}</textarea>
+  </details>
+</section>
+{% endblock %}

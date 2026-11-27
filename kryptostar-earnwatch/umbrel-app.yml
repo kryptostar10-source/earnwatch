@@ -4,7 +4,7 @@ name: EarnWatch
 tagline: All your passive income apps in one secure dashboard
 icon: https://raw.githubusercontent.com/kryptostar10-source/earnwatch/main/docs/umbrel/icon.svg
 category: finance
-version: "1.4.0"
+version: "1.5.0"
 port: 3925
 description: >-
   EarnWatch tracks your balances on Honeygain (incl. JumpTask), EarnApp, Grass, Bytelixir,
@@ -33,8 +33,9 @@ gallery:
   - https://raw.githubusercontent.com/kryptostar10-source/earnwatch/main/docs/screenshots/uebersicht-dot.jpg
   - https://raw.githubusercontent.com/kryptostar10-source/earnwatch/main/docs/screenshots/plattform-seite.jpg
 releaseNotes: >-
-  New platform: Bitping (nodes.bitping.com) – balance, earnings and payouts.
-  Sign in with email + password, or with a browser token for 2FA / Google / Apple / GitHub accounts.
+  Computer monitoring: a small Windows agent reports CPU, memory, download and upload every minute.
+  Shown in the sidebar on every page (dashboard card in Desktop/Frost style and on phones).
+  Reports are signed with a per-computer key that is never sent. Photo uploads and backup import fixed.
 dependencies: []
 path: ""
 defaultUsername: ""

@@ -162,6 +162,28 @@
       {{ miners_svg }}
     </div>
     {% endif %}
+    {% if pcs %}
+    <section class="card sm pccard">
+      <div class="cardhead"><h2>Rechner</h2><span class="muted small">CPU · RAM · Internet</span></div>
+      {% for pc in pcs %}
+      <div class="pc{% if not pc.online %} off{% endif %}">
+        <div class="pctop"><span class="pcdot" aria-hidden="true"></span><b>{{ pc.name }}</b>
+          <span class="muted small">{% if pc.online %}online{% elif pc.seen %}offline · {{ pc.seen|ago }}{% else %}wartet auf erste Meldung{% endif %}</span></div>
+        {% if pc.seen %}
+        <div class="pcrow"><span class="pclbl">CPU</span><span class="pcbar"><i class="w{{ ((pc.cpu or 0) / 5)|round|int * 5 }}"></i></span><b class="pcval">{{ '%.0f'|format(pc.cpu) ~ ' %' if pc.cpu is not none else '–' }}</b></div>
+        {{ pc_spark(pc.cpu_hist, 100, 'cpu') }}
+        <div class="pcrow"><span class="pclbl">RAM</span><span class="pcbar ram"><i class="w{{ ((pc.mem_pct or 0) / 5)|round|int * 5 }}"></i></span><b class="pcval">{{ fmt_bytes(pc.mem_used) }} / {{ fmt_bytes(pc.mem_total) }}</b></div>
+        <div class="pcnet">
+          <div><span class="muted small">↓ Download</span><b>{{ fmt_bits(pc.down) }}</b></div>
+          <div><span class="muted small">↑ Upload</span><b>{{ fmt_bits(pc.up) }}</b></div>
+          <div><span class="muted small">Heute</span><b>↓ {{ fmt_bytes(pc.rx_day) }} · ↑ {{ fmt_bytes(pc.tx_day) }}</b></div>
+        </div>
+        {{ pc_spark(pc.down_hist, None, 'net') }}
+        {% endif %}
+      </div>
+      {% endfor %}
+    </section>
+    {% endif %}
     {% if dgb %}
     <a class="card sm dgbcard" href="/p/digibyte">
       <div class="cardhead"><h2>DigiByte Miner</h2><span class="pill dgb">{{ dgb.info.online|default(0) }} / {{ dgb.info.geraete|default(0) }} online</span></div>

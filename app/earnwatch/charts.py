@@ -527,3 +527,16 @@ def folio_area(days: list, values: list[float], width=1000, height=240) -> Marku
         f'<line class="fbase" x1="0" x2="{width}" y1="{bot}" y2="{bot}"/>'
         f'<path class="farea" d="{area}"/><path class="fline" d="{line}"/>'
         f'<circle class="fend" cx="{ex:.1f}" cy="{ey:.1f}" r="5"/>{lbl}{hits}</svg>')
+
+
+def pc_spark(points: list, vmax: float | None = None, cls: str = "", width=240, height=40) -> Markup:
+    """Kleine Verlaufslinie (Rechner-Karte): CPU in % (vmax=100) oder Download-Rate."""
+    pts = [(float(t), float(v)) for t, v in points if v is not None]
+    if len(pts) < 2:
+        return Markup("")
+    t0, t1 = pts[0][0], pts[-1][0]
+    top = vmax or max(v for _, v in pts) or 1
+    xy = [((t - t0) / ((t1 - t0) or 1) * width, height - 2 - min(v, top) / top * (height - 6)) for t, v in pts]
+    line = _smooth(xy)
+    return Markup(f'<svg class="pcspark {escape(cls)}" viewBox="0 0 {width} {height}" preserveAspectRatio="none" aria-hidden="true">'
+                  f'<path class="pa" d="{line} L{width},{height} L0,{height} Z"/><path class="pl" d="{line}"/></svg>')

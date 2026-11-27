@@ -1191,3 +1191,50 @@ svg.dk-tile text{fill:#fff;font:700 15px var(--sans)}
 .setcard.ishidden:hover,.setcard.ishidden:focus-within{opacity:1}
 .hideform{display:inline-block;margin:0 6px 0 0}
 .hideform + .delform{display:inline-block}
+
+/* Rechner-Überwachung */
+.pccard .pc{padding:12px 0;border-top:1px solid var(--line)}
+.pccard .pc:first-of-type{border-top:0;padding-top:4px}
+.pctop{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.pctop .muted{margin-left:auto}
+.pcdot{width:8px;height:8px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 3px var(--ok-bg)}
+.pc.off .pcdot{background:var(--faint);box-shadow:none}
+.pc.off .pcrow,.pc.off .pcnet,.pc.off .pcspark{opacity:.5}
+.pcrow{display:grid;grid-template-columns:38px 1fr auto;align-items:center;gap:10px;margin:6px 0}
+.pclbl{font-size:12px;color:var(--muted)}
+.pcval{font-size:13px;font-variant-numeric:tabular-nums;white-space:nowrap}
+.pcbar{height:7px;border-radius:4px;background:var(--track);overflow:hidden}
+.pcbar i{display:block;height:100%;border-radius:4px;background:linear-gradient(90deg,#34d399,#fbbf24 70%,#f87171)}
+.pcbar.ram i{background:linear-gradient(90deg,#60a5fa,#a78bfa)}
+.pcspark{display:block;width:100%;height:34px;margin:2px 0 4px}
+.pcspark .pl{fill:none;stroke-width:1.8;vector-effect:non-scaling-stroke}
+.pcspark.cpu .pl{stroke:#34d399}.pcspark.cpu .pa{fill:rgba(52,211,153,.14)}
+.pcspark.net .pl{stroke:#60a5fa}.pcspark.net .pa{fill:rgba(96,165,250,.14)}
+.pcnet{display:grid;grid-template-columns:1fr 1fr;gap:6px 12px;margin-top:8px}
+.pcnet div{display:flex;flex-direction:column;gap:1px}
+.pcnet div:last-child{grid-column:1/-1}
+.pcnet b{font-size:13.5px;font-variant-numeric:tabular-nums}
+.inlineform{display:inline;margin:0}
+
+.pcbar i.w0{width:0%}.pcbar i.w5{width:5%}.pcbar i.w10{width:10%}.pcbar i.w15{width:15%}.pcbar i.w20{width:20%}.pcbar i.w25{width:25%}.pcbar i.w30{width:30%}.pcbar i.w35{width:35%}.pcbar i.w40{width:40%}.pcbar i.w45{width:45%}.pcbar i.w50{width:50%}.pcbar i.w55{width:55%}.pcbar i.w60{width:60%}.pcbar i.w65{width:65%}.pcbar i.w70{width:70%}.pcbar i.w75{width:75%}.pcbar i.w80{width:80%}.pcbar i.w85{width:85%}.pcbar i.w90{width:90%}.pcbar i.w95{width:95%}.pcbar i.w100{width:100%}
+/* Rechner in der Seitenleiste (unter „Abmelden“) */
+.sidepcs{margin:14px 2px 0;padding:12px;border-radius:var(--r-md);background:var(--glass-2);border:1px solid var(--line);display:flex;flex-direction:column;gap:10px}
+.sp-head{font-size:11px;font-weight:650;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.sp + .sp{border-top:1px solid var(--line);padding-top:10px}
+.sp-name{display:flex;align-items:center;gap:7px;font-size:13px;min-width:0}
+.sp-name b{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sp-st{margin-left:auto;font-size:11px;color:var(--muted);white-space:nowrap}
+.sp .pcdot{flex:none;width:7px;height:7px}
+.sp.off .pcdot{background:var(--faint);box-shadow:none}
+.sp.off .sp-row,.sp.off .sp-net{opacity:.45}
+.sp-row{display:grid;grid-template-columns:30px 1fr 38px;align-items:center;gap:7px;margin-top:6px;font-size:11.5px;color:var(--muted)}
+.sp-row b{color:var(--text);text-align:right;font-variant-numeric:tabular-nums;font-size:12px}
+.sp-row .pcbar{height:5px}
+.sp-net{display:flex;justify-content:space-between;gap:6px;margin-top:6px;font-size:11.5px;color:var(--soft);font-variant-numeric:tabular-nums;white-space:nowrap}
+/* Große Rechner-Karte im Dashboard nur, wo es keine Seitenleiste gibt (Desktop-Stil, Handy) */
+.pccard{display:none}
+:root[data-desktop] .pccard{display:block}
+@media (max-width:760px){.pccard{display:block}.sidepcs{display:none}}
+/* Frost hat nur eine schmale Symbolleiste → dort die große Karte */
+:root[data-style=frost] .sidepcs{display:none}
+:root[data-style=frost] .pccard{display:block}

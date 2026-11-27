@@ -30,7 +30,7 @@ from starlette.staticfiles import StaticFiles
 from starlette.templating import Jinja2Templates
 from markupsafe import Markup
 
-from . import achievements, auth, backup, icons, mirror, wallpaper, webauthn, charts, config, db, events, fx, notify, stats, totp
+from . import achievements, agents, auth, backup, icons, mirror, wallpaper, webauthn, charts, config, db, events, fx, notify, stats, totp
 from .collectors import PLATFORMS
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -44,6 +44,9 @@ templates = Jinja2Templates(directory=str(BASE / "templates"))
 templates.env.globals["money"] = charts.money
 templates.env.globals["amount"] = charts.amount
 templates.env.globals["hashfmt"] = charts.hashfmt
+templates.env.globals["fmt_bits"] = agents.fmt_bits
+templates.env.globals["fmt_bytes"] = agents.fmt_bytes
+templates.env.globals["pc_spark"] = charts.pc_spark
 templates.env.globals["umbrel"] = config.UMBREL
 templates.env.globals["cur_label"] = lambda: "Euro" if charts.currency()[0] == "EUR" else "USD"
 
@@ -208,6 +211,7 @@ def render(request: Request, name: str, ctx: dict | None = None, status: int = 2
             n = dt.datetime.now(stats.TZ)
             ctx["clock"] = (f'{["Mo.", "Di.", "Mi.", "Do.", "Fr.", "Sa.", "So."][n.weekday()]} {n.day}. '
                             f'{["Jan.", "Feb.", "März", "Apr.", "Mai", "Juni", "Juli", "Aug.", "Sep.", "Okt.", "Nov.", "Dez."][n.month - 1]} {n:%H:%M}')
+        ctx["side_pcs"] = agents.overview()   # Auslastung der Rechner in der Seitenleiste
         ctx["status"] = {"interval": interval, "next_in": nxt, "mirror": db.is_mirror(),
                          "frac": round(1 - nxt / interval, 3) if nxt is not None else 0}
         try:
@@ -678,6 +682,7 @@ async def dashboard(request: Request):
         "today_str": f"{weekdays[now.weekday()]}, {now.day}. {months[now.month - 1]}",
         "bar_svg": charts.bar_chart(data["chart"]),
         "folio_svg": charts.folio_area(fdays, fvals),
+        "pcs": agents.overview(),
         "folio_range": frange,
         "folio_gain": sum(fvals),
         "intro": intro,
@@ -984,6 +989,7 @@ async def settings_page(request: Request):
         "eur_rate": float(db.get_setting("eur_rate", "0") or 0),
         "eur_rate_ts": int(db.get_setting("eur_rate_ts", "0") or 0),
         "hidden": db.hidden_platforms(),
+        "pcs": agents.all_agents(),
         "walls": {k: v for k, v in WALLPAPERS.items() if k != "photo" or wallpaper.current()},
         "photo": wallpaper.current(),
         "presets": wallpaper.PRESETS,
@@ -1071,6 +1077,23 @@ async def settings_save(request: Request):
         else:
             db.save_credentials(what, data)
             flash(request, f"{meta['name']}: Zugang verschlüsselt gespeichert.")
+    elif what == "agent_add":
+        try:
+            aid, key = agents.create(form.get("name", ""))
+        except ValueError as e:
+            flash(request, str(e), "err")
+            return redirect("/settings#rechner")
+        proto = (request.headers.get("x-forwarded-proto") or request.url.scheme or "https").split(",")[0].strip()
+        host = request.headers.get("x-forwarded-host") or request.headers.get("host") or ""
+        base = f"{'https' if proto == 'https' else 'http'}://{host}"
+        notify.send("security", "🖥️ Rechner hinzugefügt", f"{user['username']} hat einen Rechner-Agenten angelegt.", priority=2, tags=["computer"])
+        return render(request, "agent_install.html", {"user": user, "cmd": agents.windows_install(base, aid, key),
+                                                      "uninstall": agents.WINDOWS_UNINSTALL,
+                                                      "pcname": form.get("name", "").strip()[:32], "base": base})
+    elif what == "agent_del":
+        agents.delete(form.get("id", ""))
+        flash(request, "Rechner entfernt – er kann nichts mehr melden.")
+        return redirect("/settings#rechner")
     elif what == "visibility":
         pf = form.get("platform", "")
         if pf in PLATFORMS:
@@ -1364,6 +1387,20 @@ async def app_icon(request: Request):
                              "content-security-policy": "default-src 'none'; sandbox"})
 
 
+async def api_agent(request: Request):
+    """Meldung eines Rechner-Agenten (signiert, siehe agents.py). Antwortet ohne Details."""
+    ip = client_ip(request)
+    if _api_throttle.blocked(f"agent:{ip}"):
+        return Response(status_code=429)
+    body = await request.body()
+    aid = request.path_params["aid"]
+    if not agents.verify(aid, request.headers, body):
+        _api_throttle.fail(f"agent:{ip}")
+        return Response(status_code=401)
+    await run_in_threadpool(agents.record, aid, body)
+    return Response(status_code=204)
+
+
 async def healthz(request: Request):
     return PlainTextResponse("ok")
 
@@ -1412,6 +1449,7 @@ routes = [
     Route("/live.css", live_css),
     Route("/api/widget", api_widget),
     Route("/api/mirror", api_mirror),
+    Route("/api/agent/{aid:str}", api_agent, methods=["POST"]),
     Mount("/static", StaticFiles(directory=str(BASE / "static")), name="static"),
 ]
 
