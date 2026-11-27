@@ -10,6 +10,7 @@ mit nosniff + Sandbox-CSP.
 """
 from __future__ import annotations
 
+import http.client
 import ipaddress
 import socket
 import ssl
@@ -60,10 +61,60 @@ def _check_url(url: str) -> urllib.parse.ParseResult:
     except (socket.gaierror, UnicodeError):
         raise WallError("Die Adresse wurde nicht gefunden.") from None
     for info in infos:
-        ip = ipaddress.ip_address(info[4][0])
-        if not ip.is_global or ip.is_multicast:
+        if not _public(info[4][0]):
             raise WallError("Links ins eigene Netz (Router, Server, localhost …) sind aus Sicherheitsgründen gesperrt.")
     return u
+
+
+_NAT64 = ipaddress.ip_network("64:ff9b::/96")
+_NAT64_LOCAL = ipaddress.ip_network("64:ff9b:1::/48")
+_SIX_TO_FOUR = ipaddress.ip_network("2002::/16")
+
+
+def _public(addr: str) -> bool:
+    """Nur echte öffentliche Adressen – auch IPv4, die in IPv6 versteckt ist (NAT64, 6to4, Teredo)."""
+    ip = ipaddress.ip_address(addr.split("%")[0])
+    if not ip.is_global or ip.is_multicast:
+        return False
+    if ip.version == 6:
+        inner = None
+        if ip in _NAT64 or ip in _NAT64_LOCAL:
+            inner = ipaddress.IPv4Address(int(ip) & 0xFFFFFFFF)
+        elif ip in _SIX_TO_FOUR:
+            inner = ip.sixtofour
+        elif ip.teredo:
+            inner = ip.teredo[1]
+        if inner is not None and (not inner.is_global or inner.is_multicast):
+            return False
+    return True
+
+
+class _PinnedHTTPS(http.client.HTTPSConnection):
+    """Verbindet nur zu einer vorher geprüften öffentlichen IP – gegen DNS-Rebinding
+    (Name zeigt bei der Prüfung nach draußen, beim Verbinden plötzlich ins Heimnetz)."""
+
+    def connect(self):
+        if self._tunnel_host:   # über einen Proxy: der Proxy entscheidet, Standardweg
+            return super().connect()
+        infos = socket.getaddrinfo(self.host, self.port or 443, proto=socket.IPPROTO_TCP)
+        if not infos or not all(_public(i[4][0]) for i in infos):
+            raise OSError("Ziel ist keine öffentliche Adresse")
+        family, _, _, _, sa = infos[0]
+        sock = socket.socket(family, socket.SOCK_STREAM)
+        sock.settimeout(self.timeout)
+        try:
+            sock.connect(sa)
+            if not _public(sock.getpeername()[0]):   # was wirklich verbunden wurde
+                raise OSError("Ziel ist keine öffentliche Adresse")
+            self.sock = self._context.wrap_socket(sock, server_hostname=self.host)
+        except BaseException:
+            sock.close()
+            raise
+
+
+class _PinnedHandler(urllib.request.HTTPSHandler):
+    def https_open(self, req):
+        return self.do_open(_PinnedHTTPS, req, context=self._context)
 
 
 class _Redirect(urllib.request.HTTPRedirectHandler):
@@ -83,7 +134,7 @@ def download(url: str) -> tuple[bytes, str]:
     if len(url) > 2000:
         raise WallError("Der Link ist zu lang.")
     _check_url(url)
-    opener = urllib.request.build_opener(urllib.request.HTTPSHandler(context=ssl.create_default_context()),
+    opener = urllib.request.build_opener(_PinnedHandler(context=ssl.create_default_context()),
                                          _Redirect(), _NoHTTP())
     req = urllib.request.Request(url.strip(), headers={"User-Agent": UA, "Accept": "image/jpeg,image/png,image/webp,image/*;q=0.8"})
     try:

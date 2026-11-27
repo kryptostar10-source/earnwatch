@@ -83,6 +83,10 @@ CSP = (
 CSP_PASSKEY = CSP.replace("script-src 'none'", "script-src 'self'; connect-src 'self'")
 
 
+# Größere Anfragen nur dort, wo Dateien hochgeladen werden (jeweils mit eigener Prüfung im Handler)
+BODY_LIMITS = {"/settings/wallpaper": 15 * 1024 * 1024 + 65536, "/setup/import": 30 * 1024 * 1024 + 65536}
+
+
 class SecurityHeaders:
     def __init__(self, app):
         self.app = app
@@ -91,9 +95,10 @@ class SecurityHeaders:
         if scope["type"] != "http":
             return await self.app(scope, receive, send)
 
-        # Anfragen größer als 64 KB gar nicht erst annehmen
+        # Anfragen größer als 64 KB gar nicht erst annehmen – außer den zwei Upload-Adressen mit eigener Grenze
+        limit = BODY_LIMITS.get(scope.get("path", ""), 65536)
         for k, v in scope.get("headers", []):
-            if k == b"content-length" and (not v.isdigit() or int(v) > 65536):
+            if k == b"content-length" and (not v.isdigit() or int(v) > limit):
                 await send({"type": "http.response.start", "status": 413,
                             "headers": [(b"content-type", b"text/plain; charset=utf-8")]})
                 await send({"type": "http.response.body", "body": "Anfrage zu groß".encode()})
@@ -107,7 +112,7 @@ class SecurityHeaders:
             msg = await receive()
             if msg["type"] == "http.request":
                 received += len(msg.get("body", b""))
-                if received > 65536:
+                if received > limit:
                     raise RuntimeError("Anfrage zu groß")
             return msg
 
