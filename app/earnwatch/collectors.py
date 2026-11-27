@@ -7,6 +7,7 @@ Wichtig für die Sicherheit:
 """
 from __future__ import annotations
 
+import hashlib
 import http.cookiejar
 import json
 import logging
@@ -534,6 +535,70 @@ def collect_digibyte(creds: dict) -> Result:
         return Result("digibyte", None, str(e))
 
 
+# --- Bitping (nodes.bitping.com) ------------------------------------------
+# Login wie im Bitping-Dashboard: POST /auth/login → Token (Cookie „token“ oder im JSON).
+# Guthaben: GET /api/v2/payouts/earnings → usdEarnings (USD).
+BITPING = "https://nodes.bitping.com"
+_bitping_token_cache: dict[str, str] = {}
+
+
+def collect_bitping(creds: dict) -> Result:
+    email, password = creds.get("email", "").strip(), creds.get("password", "")
+    fixed = creds.get("token", "").strip()
+    if not fixed and (not email or not password):
+        return Result("bitping", None, "Keine Zugangsdaten hinterlegt")
+    jar = http.cookiejar.CookieJar()
+    op = _opener(jar)
+    # Zwischenspeicher nur für genau diese Zugangsdaten (neues Passwort = neuer Login)
+    key = hashlib.sha256(f"{email}\0{password}".encode()).hexdigest()
+    try:
+        def login() -> str:
+            if fixed:   # Token aus dem Browser (für 2FA- oder Google/Apple-Konten)
+                return fixed
+            st, raw, _ = _request(op, f"{BITPING}/auth/login", method="POST",
+                                  body={"email": email, "password": password})
+            if st in (400, 401, 403, 422):
+                raise CollectError("Login abgelehnt – E-Mail/Passwort prüfen (bei 2FA: Token-Feld nutzen)")
+            if st == 429:
+                raise CollectError("Bitping bremst gerade (Rate-Limit) – nächster Versuch später")
+            if st not in (200, 201):
+                raise CollectError(f"Login fehlgeschlagen (HTTP {st})")
+            tok = next((c.value for c in jar if c.name == "token" and c.value), None)
+            if not tok:
+                try:
+                    tok = _json(raw).get("token")
+                except CollectError:
+                    tok = None
+            if not tok:
+                raise CollectError("Kein Token in der Login-Antwort – bei 2FA bitte das Token-Feld nutzen")
+            return tok
+
+        token = fixed or _bitping_token_cache.get(key) or login()
+
+        def earnings(tok):
+            return _request(op, f"{BITPING}/api/v2/payouts/earnings", headers={"Authorization": f"Bearer {tok}"})
+        st, raw, _ = earnings(token)
+        if st == 401 and not fixed:
+            token = login()
+            st, raw, _ = earnings(token)
+        if st == 401:
+            raise CollectError("Token abgelaufen – neu anmelden bzw. neues Token eintragen")
+        if st != 200:
+            raise CollectError(f"Guthaben-Abruf fehlgeschlagen (HTTP {st})")
+        if not fixed:
+            _bitping_token_cache[key] = token
+        bal = _json(raw).get("usdEarnings")
+        if bal is None:
+            raise CollectError("Feld usdEarnings fehlt – API geändert?")
+        return Result("bitping", round(float(bal), 4))
+    except CollectError as e:
+        _bitping_token_cache.pop(key, None)
+        return Result("bitping", None, str(e))
+    except (ValueError, TypeError):
+        _bitping_token_cache.pop(key, None)
+        return Result("bitping", None, "Unerwartete Antwort von Bitping")
+
+
 # --- Pawns.app (IPRoyal) --------------------------------------------------
 PAWNS_API = "https://api.pawns.app/api/v1"
 _pawns_token_cache: dict[str, str] = {}
@@ -706,6 +771,32 @@ PLATFORMS = {
             {"key": "address", "label": "DigiByte-Adresse (dgb1…)", "type": "text", "required": True},
         ],
         "hint": "Nur deine DGB-Adresse, mit der du bei digi.hmpool.io minst – die Pool-Daten sind öffentlich, kein Passwort nötig. Zeigt Guthaben, Hashrate, Miner, Shares und Auszahlungen.",
+    },
+    "bitping": {
+        "name": "Bitping", "color": "#8B5CF6", "short": "BP", "unit": "USD", "usd": True, "on_drop": "payout",
+        "collect": collect_bitping, "dashboard": "https://nodes.bitping.com/dashboard", "min_payout": None,
+        "fields": [
+            {"key": "email", "label": "E-Mail", "type": "email", "required": False},
+            {"key": "password", "label": "Passwort", "type": "password", "required": False},
+            {"key": "token", "label": "Token (nur bei 2FA / Google-Login)", "type": "password", "required": False},
+        ],
+        "hint": "E-Mail + Passwort wie bei nodes.bitping.com. Mit 2FA oder Google/Apple/GitHub-Login stattdessen das Token eintragen: nodes.bitping.com einloggen → F12 → Anwendung → Cookies → „token“ kopieren.",
+        "account": {
+            "signup": "https://app.bitping.com/signup",
+            "login": "https://nodes.bitping.com/dashboard",
+            "new_steps": [
+                "Auf „Konto erstellen“ tippen – Bitping öffnet sich in einem neuen Tab.",
+                "Mit E-Mail + Passwort registrieren (dann reicht hier E-Mail + Passwort).",
+                "Bitping-Node installieren (App oder Docker) und mit dem Konto verbinden.",
+                "Danach hier oben auf „Ich habe schon ein Konto“ wechseln und die Daten eintragen.",
+            ],
+            "login_steps": [
+                "E-Mail + Passwort von Bitping unten eintragen → Speichern. Fertig.",
+                "Nur bei 2FA oder Google/Apple/GitHub-Login: nodes.bitping.com einloggen,",
+                "F12 → Reiter „Anwendung“ (Firefox: „Speicher“) → Cookies → https://nodes.bitping.com,",
+                "Wert von „token“ kopieren und unten ins Token-Feld einfügen.",
+            ],
+        },
     },
     "pawns": {
         "name": "Pawns.app", "color": "#F472B6", "short": "PA", "unit": "USD", "usd": True, "on_drop": "payout",

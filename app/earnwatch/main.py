@@ -1055,6 +1055,8 @@ async def settings_save(request: Request):
             flash(request, "Bitte ausfüllen: " + ", ".join(missing), "err")
         elif what == "honeygain" and "@" not in data["email"]:
             flash(request, "Bitte eine gültige E-Mail eingeben.", "err")
+        elif what == "bitping" and not data.get("token") and not (data.get("email") and data.get("password")):
+            flash(request, "Bitte E-Mail UND Passwort eintragen – oder bei 2FA/Google-Login das Token.", "err")
         elif what == "honeygain_jt" and any(data.values()) and not all(data.values()):
             flash(request, "Bitte E-Mail UND Passwort eintragen – oder beides leer lassen.", "err")
         elif not any(data.values()):

@@ -4,7 +4,7 @@ name: EarnWatch
 tagline: All your passive income apps in one secure dashboard
 icon: https://raw.githubusercontent.com/kryptostar10-source/earnwatch/main/docs/umbrel/icon.svg
 category: finance
-version: "1.3.0"
+version: "1.4.0"
 port: 3925
 description: >-
   EarnWatch tracks your balances on Honeygain (incl. JumpTask), EarnApp, Grass, Bytelixir,
@@ -33,8 +33,8 @@ gallery:
   - https://raw.githubusercontent.com/kryptostar10-source/earnwatch/main/docs/screenshots/uebersicht-dot.jpg
   - https://raw.githubusercontent.com/kryptostar10-source/earnwatch/main/docs/screenshots/plattform-seite.jpg
 releaseNotes: >-
-  New platform: DigiByte mining pool digi.hmpool.io (balance, hashrate, miners, shares, payouts).
-  Hide any platform in Settings without deleting it. Payouts that bounce back are no longer counted twice.
+  New platform: Bitping (nodes.bitping.com) – balance, earnings and payouts.
+  Sign in with email + password, or with a browser token for 2FA / Google / Apple / GitHub accounts.
 dependencies: []
 path: ""
 defaultUsername: ""
