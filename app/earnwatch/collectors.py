@@ -619,6 +619,93 @@ def collect_bitping(creds: dict) -> Result:
         return Result("bitping", None, "Unerwartete Antwort von Bitping")
 
 
+# --- unMineable (Mining-Pool, Auszahlung im gewählten Coin) -----------------
+# Öffentliche API: nur Adresse + Coin. Zahlen kommen als Text, Zeitstempel in ms.
+UNM_API = "https://api.unminable.com/v4"
+_UNM_ADDR = re.compile(r"^[A-Za-z0-9]{10,120}$")
+_UNM_COIN = re.compile(r"^[A-Za-z0-9]{2,12}$")
+_UNM_MHS = {"ethash", "etchash", "kawpow", "autolykos", "octopus", "beamhash"}   # Werte dort meist in MH/s
+
+
+def _unm(op, path: str) -> dict:
+    st, raw, _ = _request(op, UNM_API + path)
+    if st == 429:
+        raise CollectError("unMineable bremst gerade (Rate-Limit) – nächster Versuch später")
+    if st != 200:
+        raise CollectError(f"unMineable-Abruf fehlgeschlagen (HTTP {st})")
+    d = _json(raw)
+    if not isinstance(d, dict) or not d.get("success"):
+        msg = str((d or {}).get("msg") or (d or {}).get("message") or "")[:80] if isinstance(d, dict) else ""
+        raise CollectError(f"unMineable meldet: {msg or 'Fehler'} – Adresse und Coin prüfen")
+    return d.get("data") or {}
+
+
+def _f(v) -> float:
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def collect_unmineable(creds: dict) -> Result:
+    addr, coin = creds.get("address", "").strip(), creds.get("coin", "").strip().upper()
+    if not _UNM_ADDR.match(addr) or not _UNM_COIN.match(coin):
+        return Result("unmineable", None, "Bitte Wallet-Adresse und Coin (z. B. SHIB, DOGE, XMR) eintragen")
+    op = _opener()
+    try:
+        a = _unm(op, f"/address/{urllib.parse.quote(addr)}?coin={urllib.parse.quote(coin)}")
+        if a.get("fresh"):
+            raise CollectError("unMineable kennt diese Adresse noch nicht – läuft der Miner schon mit COIN:ADRESSE?")
+        uuid = str(a.get("uuid") or "")
+        if not re.fullmatch(r"[A-Za-z0-9-]{8,64}", uuid):
+            raise CollectError("Keine Konto-ID von unMineable erhalten")
+        bal = _f(a.get("balance"))
+        stats = {}
+        try:
+            stats = _unm(op, f"/account/{uuid}/stats")
+        except CollectError:
+            pass
+        rigs, algos = [], {}
+        try:
+            w = _unm(op, f"/account/{uuid}/workers")
+            for algo, grp in (w.items() if isinstance(w, dict) else []):
+                for x in ((grp or {}).get("workers") or [])[:40]:
+                    if not isinstance(x, dict):
+                        continue
+                    hr = _f(x.get("chr") or x.get("rhr"))
+                    if str(algo).lower() in _UNM_MHS and 0 < hr < 1e5:
+                        hr *= 1e6
+                    rigs.append({"name": str(x.get("name") or "Miner")[:24], "hashrate": hr,
+                                 "active": bool(x.get("online")), "algo": str(algo)[:12]})
+                    if x.get("online"):
+                        algos[str(algo)[:12]] = algos.get(str(algo)[:12], 0.0) + hr
+        except CollectError:
+            pass
+        rigs = rigs[:40]
+        price = None
+        try:   # Kurs des Coins über das Kürzel (öffentlich, ohne Schlüssel)
+            st2, raw2, _ = _request(op, "https://api.coingecko.com/api/v3/simple/price?vs_currencies=usd&symbols="
+                                    + urllib.parse.quote(coin.lower()))
+            if st2 == 200:
+                price = float((_json(raw2).get(coin.lower()) or {}).get("usd") or 0) or None
+        except (CollectError, ValueError, TypeError):
+            pass
+        rew = (stats.get("rewarded") or {}) if isinstance(stats, dict) else {}
+        online = sum(1 for r in rigs if r["active"])
+        info = {
+            "coin": coin, "threshold": _f(a.get("payment_threshold") or stats.get("payment_threshold")),
+            "fee": str(a.get("mining_fee") or "")[:6], "network": str(a.get("network") or "")[:20],
+            "r24": _f(rew.get("past_24h")), "r7": _f(rew.get("past_7d")), "r30": _f(rew.get("past_30d")),
+            "paid": _f(stats.get("paid")), "last_payment": int(_f(stats.get("last_payment")) / 1000) or None,
+            "rigs": rigs, "miner": online, "geraete": len(rigs), "online": online,
+            "hashrate": sum(algos.values()), "algos": algos,
+            "flags": [k for k, v in (a.get("err_flags") or {}).items() if v][:4] if isinstance(a.get("err_flags"), dict) else [],
+        }
+        return Result("unmineable", round(bal, 10), price_usd=price, info=info)
+    except CollectError as e:
+        return Result("unmineable", None, str(e))
+
+
 # --- Pawns.app (IPRoyal) --------------------------------------------------
 PAWNS_API = "https://api.pawns.app/api/v1"
 _pawns_token_cache: dict[str, str] = {}
@@ -817,6 +904,15 @@ PLATFORMS = {
                 "Wert von „token“ kopieren und unten ins Token-Feld einfügen.",
             ],
         },
+    },
+    "unmineable": {
+        "name": "unMineable", "color": "#F59E0B", "short": "UM", "unit": "COIN", "usd": "price", "on_drop": "payout",
+        "collect": collect_unmineable, "dashboard": "https://unmineable.com/", "min_payout": None,
+        "fields": [
+            {"key": "coin", "label": "Coin (z. B. SHIB, DOGE, XMR)", "type": "text", "required": True},
+            {"key": "address", "label": "Wallet-Adresse", "type": "text", "required": True},
+        ],
+        "hint": "Dieselbe Adresse und derselbe Coin wie im Miner (COIN:ADRESSE.WORKER). unMineable-Daten sind öffentlich – kein Passwort nötig.",
     },
     "pawns": {
         "name": "Pawns.app", "color": "#F472B6", "short": "PA", "unit": "USD", "usd": True, "on_drop": "payout",

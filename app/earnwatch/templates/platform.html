@@ -140,9 +140,9 @@
 
 {% if x.since %}{{ heatcard(heat_svg, x.streaks, p.id) }}{% endif %}
 
-{% if miners_svg %}{% if p.id == 'digibyte' %}<div class="grid2 minergrid">{% endif %}
+{% if miners_svg %}{% if p.id in ('digibyte', 'unmineable') %}<div class="grid2 minergrid">{% endif %}
 <section class="card sm">
-  <div class="cardhead"><h2>Miner</h2><span class="pill {{ 'dgb' if p.id == 'digibyte' else 'duco' }}">{{ p.info.miner|default(0) }}{% if p.info.geraete is defined and p.id == 'digibyte' %} / {{ p.info.geraete }}{% endif %} online</span></div>
+  <div class="cardhead"><h2>Miner</h2><span class="pill {{ 'dgb' if p.id == 'digibyte' else 'unm' if p.id == 'unmineable' else 'duco' }}">{{ p.info.miner|default(0) }}{% if p.info.geraete is defined and p.id in ('digibyte', 'unmineable') %} / {{ p.info.geraete }}{% endif %} online</span></div>
   <p class="minerhead"><b class="mono">{{ hashfmt(p.info.hashrate) }}</b> <span class="muted small">gesamt</span></p>
   {{ miners_svg }}
 </section>
@@ -184,7 +184,27 @@
   </ul>
 </section>
 {% endif %}
-{% if miners_svg and p.id == 'digibyte' %}</div>{% endif %}
+{% if p.id == 'unmineable' and p.configured %}{% set i = p.info %}
+<section class="card sm poolcard">
+  <div class="cardhead"><h2>unMineable · {{ i.coin|default('') }}</h2><a class="pill" href="https://unmineable.com/" target="_blank" rel="noopener noreferrer">unmineable.com ↗</a></div>
+  <dl class="poolstats">
+    <div><dt>24 Std.</dt><dd>{{ amount(i.r24, p.unit) }}</dd></div>
+    <div><dt>7 Tage</dt><dd>{{ amount(i.r7, p.unit) }}</dd></div>
+    <div><dt>30 Tage</dt><dd>{{ amount(i.r30, p.unit) }}</dd></div>
+  </dl>
+  {% if i.threshold %}{% set pct = ((p.balance or 0) / i.threshold * 100) if i.threshold else 0 %}
+  <div class="unmprog"><span class="muted small">Bis zur Auszahlung ({{ amount(i.threshold, p.unit) }})</span>
+    <span class="pcbar"><i class="w{{ ([pct, 100]|min / 5)|round|int * 5 }}"></i></span><b>{{ '%.0f'|format([pct, 100]|min) }} %</b></div>{% endif %}
+  <ul class="facts">
+    <li><span>Hashrate jetzt</span><b>{{ hashfmt(i.hashrate) }}{% for a, v in (i.algos or {}).items() %} <span class="muted small">· {{ a }}</span>{% endfor %}</b></li>
+    <li><span>Insgesamt ausgezahlt</span><b>{{ amount(i.paid, p.unit) }}</b></li>
+    {% if i.last_payment %}<li><span>Letzte Auszahlung</span><b>{{ i.last_payment|dtfmt }}</b></li>{% endif %}
+    {% if i.fee %}<li><span>Pool-Gebühr</span><b>{{ i.fee }} %</b></li>{% endif %}
+    {% if i.flags %}<li><span>Hinweis von unMineable</span><b class="bad">{{ i.flags|join(', ') }}</b></li>{% endif %}
+  </ul>
+</section>
+{% endif %}
+{% if miners_svg and p.id in ('digibyte', 'unmineable') %}</div>{% endif %}
 
 {% if p.manual %}
 <section class="card sm">

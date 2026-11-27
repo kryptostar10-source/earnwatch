@@ -184,6 +184,13 @@
       {% endfor %}
     </section>
     {% endif %}
+    {% if unm %}
+    <a class="card sm dgbcard" href="/p/unmineable">
+      <div class="cardhead"><h2>unMineable</h2><span class="pill unm">{{ unm.info.online|default(0) }} / {{ unm.info.geraete|default(0) }} online</span></div>
+      <p class="minerhead"><b class="mono">{{ amount(unm.balance, unm.unit) }}</b> <span class="muted small">{% if unm.fac %}≈ {{ money(unm.balance * unm.fac) }} · {% endif %}24 h +{{ amount(unm.info.r24, unm.unit) }}</span></p>
+      {{ unm_miners_svg }}
+    </a>
+    {% endif %}
     {% if dgb %}
     <a class="card sm dgbcard" href="/p/digibyte">
       <div class="cardhead"><h2>DigiByte Miner</h2><span class="pill dgb">{{ dgb.info.online|default(0) }} / {{ dgb.info.geraete|default(0) }} online</span></div>
@@ -238,7 +245,7 @@
         <span class="badge" data-pf="{{ p.id }}">{{ p.short }}</span>
         <div class="ttl">
           <b>{{ p.name }} <span class="chev" aria-hidden="true">›</span></b>
-          <span>{% if p.lifetime %}an JumpTask gesendet{% elif p.manual %}manuell eingetragen{% elif p.info.modus is defined %}Modus: {{ p.info.modus }}{% elif p.unit in ('DUCO', 'DGB') and p.fac %}≈ {{ money(p.balance * p.fac) if p.balance is not none else '–' }}{% elif p.unit == 'Punkte' %}Punkte{% if p.info.art is defined %} · {{ p.info.art }}{% endif %}{% else %}{{ p.unit }}{% endif %}</span>
+          <span>{% if p.lifetime %}an JumpTask gesendet{% elif p.manual %}manuell eingetragen{% elif p.info.modus is defined %}Modus: {{ p.info.modus }}{% elif p.unit not in ('USD', 'Punkte') and p.fac %}≈ {{ money(p.balance * p.fac) if p.balance is not none else '–' }}{% elif p.unit == 'Punkte' %}Punkte{% if p.info.art is defined %} · {{ p.info.art }}{% endif %}{% else %}{{ p.unit }}{% endif %}</span>
         </div>
         </a>
         {% if not p.configured %}<span class="pill dim">aus</span>

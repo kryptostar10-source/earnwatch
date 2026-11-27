@@ -109,6 +109,11 @@ def compute(view: str = "day", period: str = "week") -> dict:
     for pf, pts in by_pf.items():
         on_drop = PLATFORMS.get(pf, {}).get("on_drop", "payout")
         min_pay = PLATFORMS.get(pf, {}).get("min_payout") or 0
+        if pf == "unmineable":   # Grenze hängt vom gewählten Coin ab -> aus dem letzten Abruf
+            try:
+                min_pay = float(json.loads(db.get_setting("info_unmineable", "{}")).get("threshold") or 0)
+            except (ValueError, TypeError, AttributeError):
+                min_pay = 0
         d = defaultdict(float)
         last_pay = None   # letzte erkannte Auszahlung dieser Plattform (für Rücksprünge)
         for (t0, b0), (t1, b1) in zip(pts, pts[1:]):
@@ -229,6 +234,8 @@ def compute(view: str = "day", period: str = "week") -> dict:
         p["exp_days"] = (exp - dt.datetime.now().timestamp()) / 86400 if exp and pf in configured else None
         try:
             p["info"] = json.loads(db.get_setting(f"info_{pf}", "{}"))
+            if meta["unit"] == "COIN":   # Einheit = gewählter Coin (unMineable)
+                p["unit"] = str(p["info"].get("coin") or "COIN")[:12]
         except ValueError:
             p["info"] = {}
         if fac is not None and p["configured"]:
@@ -295,7 +302,7 @@ def compute(view: str = "day", period: str = "week") -> dict:
             feed.append({"ts": r["ts"], "pf": p["id"], "name": p["name"], "kind": "error", "text": r["message"]})
     for x in payouts[:5]:
         feed.append({"ts": x["ts"], "pf": x["platform"], "name": PLATFORMS[x["platform"]]["name"], "kind": "payout",
-                     "amount": x["amount"], "unit": PLATFORMS[x["platform"]]["unit"]})
+                     "amount": x["amount"], "unit": next((p["unit"] for p in platforms if p["id"] == x["platform"]), PLATFORMS[x["platform"]]["unit"])})
     feed.sort(key=lambda f: f["ts"], reverse=True)
 
     return {

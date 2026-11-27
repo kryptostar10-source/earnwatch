@@ -1264,3 +1264,11 @@ svg.appic text{fill:#fff;font:700 10.5px var(--sans)}
 .diagcard summary{cursor:pointer;list-style:none;display:flex;gap:8px;align-items:baseline}
 .diagcard summary::-webkit-details-marker{display:none}
 .diagcard .facts b.small{font-size:11.5px;font-weight:500;text-align:right;word-break:break-word;max-width:60%}
+.pill.unm{background:rgba(245,158,11,.16);color:#fbbf24}
+:root[data-theme=light] .pill.unm{color:#b45309}
+.unmprog{display:grid;grid-template-columns:1fr;gap:6px;margin:0 0 12px}
+.unmprog .pcbar{height:8px}
+.unmprog b{font-size:13px}
+@media (prefers-color-scheme:light){:root:not([data-theme=dark]) .pill.unm{color:#b45309}}
+:root[data-style=folio] .pill.unm{color:#b45309}
+:root[data-style=folio][data-theme=dark] .pill.unm{color:#fbbf24}

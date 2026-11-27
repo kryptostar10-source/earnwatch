@@ -65,7 +65,12 @@ def amount(v: float | None, unit: str) -> str:
         return f"{v:,.2f} DUCO" if abs(v) >= 10 else f"{v:.3f} DUCO"
     if unit == "DGB":
         return f"{v:,.2f} DGB" if abs(v) >= 10 else f"{v:.4f} DGB"
-    return f"{v:,.0f} Pkt" if abs(v) >= 100 else f"{v:,.1f} Pkt"
+    if unit in ("Punkte", "Pkt"):
+        return f"{v:,.0f} Pkt" if abs(v) >= 100 else f"{v:,.1f} Pkt"
+    unit = escape(unit)[:12] if unit else ""
+    a = abs(v)   # Coins (z. B. unMineable): Nachkommastellen nach Größe
+    dec = 0 if a >= 1000 else 2 if a >= 10 else 4 if a >= 1 else 6 if a >= 0.001 else 8
+    return f"{v:,.{dec}f} {unit}".strip()
 
 
 def bar_chart(bars: list[dict], width=860, height=280) -> Markup:

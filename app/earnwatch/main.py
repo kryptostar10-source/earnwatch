@@ -658,6 +658,7 @@ async def dashboard(request: Request):
               "September", "Oktober", "November", "Dezember"]
     duino = next((p for p in data["platforms"] if p["id"] == "duinocoin"), None)
     dgb = next((p for p in data["platforms"] if p["id"] == "digibyte" and p["configured"]), None)
+    unm = next((p for p in data["platforms"] if p["id"] == "unmineable" and p["configured"]), None)
     # Folio (Wealthfolio-Look): großer Verlauf über wählbaren Zeitraum
     frange = request.query_params.get("range", "3m")
     fdays_n = {"1w": 7, "1m": 30, "3m": 90, "1y": 365}.get(frange)
@@ -697,6 +698,8 @@ async def dashboard(request: Request):
         "miners_svg": charts.miners(duino["info"].get("rigs", [])) if duino and duino["configured"] else None,
         "duino": duino,
         "dgb": dgb,
+        "unm": unm,
+        "unm_miners_svg": charts.miners(unm["info"].get("rigs", []), color="#F59E0B") if unm else None,
         "dgb_miners_svg": charts.miners(dgb["info"].get("rigs", []), color="#2563EB") if dgb else None,
         "sparks": {p["id"]: charts.spark(p["spark"], p["color"]) for p in data["platforms"]},
         "names": {k: v["name"] for k, v in PLATFORMS.items()},
@@ -729,7 +732,7 @@ async def platform_page(request: Request):
         "wd_svg": charts.weekday_bars(det["weekday"], p["color"], p["unit"]),
         "heat_svg": charts.heatmap(det["heat"], p["unit"]),
         "miners_svg": charts.miners(p["info"].get("rigs", []), color=PLATFORMS[pf]["color"])
-                      if pf in ("duinocoin", "digibyte") and p["configured"] else None,
+                      if pf in ("duinocoin", "digibyte", "unmineable") and p["configured"] else None,
         "hash_svg": charts.hash_spark(p["info"].get("hist", [])) if pf == "digibyte" and p["configured"] else None,
         "others": [(k, v["name"], v["short"]) for k, v in PLATFORMS.items()],
     })
