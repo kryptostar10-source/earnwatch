@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}{{ pc.name }} · EarnWatch{% endblock %}
+{% block content %}
+{% set i = pc.info or {} %}
+<header class="pagehead">
+  <div>
+    <div class="date"><a href="/">‹ Übersicht</a></div>
+    <h1>{{ pc.name }} <span class="pill {{ 'ok' if pc.online else '' }}" data-k="status">{{ 'online' if pc.online else 'offline' }}</span></h1>
+    <p class="muted small">{{ i.os or 'Windows' }}{% if i.cpu_name %} · {{ i.cpu_name }}{% endif %}{% if i.cores %} · {{ i.cores }} Threads{% endif %}{% if i.uptime %} · läuft seit {{ (i.uptime // 86400) ~ ' T. ' if i.uptime >= 86400 else '' }}{{ (i.uptime % 86400) // 3600 }} Std.{% endif %}</p>
+  </div>
+</header>
+
+<section class="pcdetail" data-pcdetail="{{ pc.id }}">
+  <div class="pcstats" data-pc="{{ pc.id }}">
+    <div class="card sm pcstat"><span class="muted small">CPU</span><b class="pcbig" data-k="cpu">{{ '%.0f'|format(pc.cpu) ~ ' %' if pc.cpu is not none else '–' }}</b><span class="pcbar"><i class="w{{ ((pc.cpu or 0) / 5)|round|int * 5 }}" data-k="cpubar"></i></span></div>
+    <div class="card sm pcstat"><span class="muted small">Arbeitsspeicher</span><b class="pcbig" data-k="mem">{{ '%.0f'|format(pc.mem_pct) ~ ' %' if pc.mem_pct is not none else '–' }}</b><span class="pcbar ram"><i class="w{{ ((pc.mem_pct or 0) / 5)|round|int * 5 }}" data-k="membar"></i></span><span class="muted small" data-k="memtxt">{{ fmt_bytes(pc.mem_used) }} / {{ fmt_bytes(pc.mem_total) }}</span></div>
+    <div class="card sm pcstat"><span class="muted small">↓ Download</span><b class="pcbig" data-k="down">{{ fmt_bits(pc.down) }}</b><span class="muted small">heute {{ fmt_bytes(pc.rx_day) }}</span></div>
+    <div class="card sm pcstat"><span class="muted small">↑ Upload</span><b class="pcbig" data-k="up">{{ fmt_bits(pc.up) }}</b><span class="muted small">heute {{ fmt_bytes(pc.tx_day) }}</span></div>
+  </div>
+
+  <section class="card pcapps">
+    <div class="cardhead"><h2>Verdienst-Apps auf diesem PC</h2><span class="muted small">live · jede Sekunde</span></div>
+    {% if not pc.has_apps %}<p class="flash warn small">Dieser PC nutzt noch das alte Mess-Programm ohne App-Werte. Unter Einstellungen → Rechner einmal entfernen, neu hinzufügen und den neuen Befehl ausführen.</p>{% endif %}
+    <div class="apptable" role="table" aria-label="Verbrauch je App">
+      <div class="approw head" role="row"><span role="columnheader">App</span><span role="columnheader">CPU</span><span role="columnheader">Arbeitsspeicher</span><span role="columnheader" title="Daten, die die App liest und schreibt – bei diesen Apps fast nur Internetverkehr">Daten*</span></div>
+      {% for a in pc.apps %}
+      <div class="approw{% if not a.running %} off{% endif %}" role="row" data-app="{{ a.k }}">
+        <span class="appname" role="cell">
+          {% set ic = app_icons.get(a.pf) %}
+          {% if ic %}<img src="/icon/{{ a.pf }}?v={{ ic[1] }}" alt="" width="28" height="28" class="appic">
+          {% else %}<svg class="appic" width="28" height="28" viewBox="0 0 28 28" aria-hidden="true"><rect width="28" height="28" rx="8" fill="{{ platforms[a.pf].color }}"/><text x="14" y="18" text-anchor="middle">{{ platforms[a.pf].short }}</text></svg>{% endif %}
+          <span><b>{{ a.name }}</b><small data-k="state">{{ 'läuft' if a.running else 'nicht gestartet' }}</small></span>
+        </span>
+        <span class="appcpu" role="cell"><span class="pcbar"><i class="w{{ ((a.bar or 0) / 5)|round|int * 5 }}" data-k="cpubar"></i></span><b data-k="cpu">{{ '%.1f'|format(a.cpu) ~ ' %' if a.cpu is not none else '–' }}</b></span>
+        <span role="cell"><b data-k="mem">{{ fmt_bytes(a.mem) if a.mem is not none else '–' }}</b></span>
+        <span role="cell"><b data-k="io">{{ fmt_bytes(a.io) ~ '/s' if a.io is not none else '–' }}</b></span>
+      </div>
+      {% endfor %}
+    </div>
+    <p class="hint">* Datendurchsatz der App (lesen + schreiben). Windows zeigt den Internetverkehr einzelner Programme nur mit Admin-Rechten – bei Honeygain &amp; Co. ist dieser Wert aber fast reiner Netzwerkverkehr. CPU in % der gesamten Rechenleistung.</p>
+  </section>
+</section>
+{% endblock %}

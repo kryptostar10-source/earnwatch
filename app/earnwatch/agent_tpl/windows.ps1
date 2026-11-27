@@ -1,4 +1,4 @@
-# EarnWatch-Agent für Windows – meldet jede Minute CPU, Arbeitsspeicher und Internet an EarnWatch.
+# EarnWatch-Agent für Windows – meldet jede Sekunde CPU, Arbeitsspeicher und Internet an EarnWatch.
 # Läuft unsichtbar, braucht keine Admin-Rechte. Der Schlüssel unten wird NIE gesendet,
 # jede Meldung wird damit nur unterschrieben (HMAC-SHA256).
 $ErrorActionPreference = 'SilentlyContinue'
@@ -30,33 +30,75 @@ function Send-Report([string]$json) {
   $req.GetResponse().Close()
 }
 
+# Verdienst-Apps erkennen (Prozessname enthält …) – Werte aus den Windows-Leistungsdaten, ohne Admin-Rechte
+$AppKeys = [ordered]@{ 'honeygain'='honeygain'; 'jumptask'='jumptask'; 'earnapp'='earnapp'; 'pawns'='pawns';
+  'bitping'='bitping'; 'earn\.?fm'='earnfm'; 'wipter'='wipter'; 'bytelixir'='bytelixir'; 'grass'='grass' }
+$AppWql = "SELECT Name, PercentProcessorTime, WorkingSetPrivate, IODataBytesPersec FROM Win32_PerfFormattedData_PerfProc_Process WHERE " +
+  "Name LIKE '%honeygain%' OR Name LIKE '%jumptask%' OR Name LIKE '%earnapp%' OR Name LIKE '%pawns%' OR Name LIKE '%bitping%' OR " +
+  "Name LIKE '%earnfm%' OR Name LIKE '%earn.fm%' OR Name LIKE '%wipter%' OR Name LIKE '%bytelixir%' OR Name LIKE '%grass%'"
+$script:cores = [int](Get-CimInstance Win32_ComputerSystem).NumberOfLogicalProcessors
+if ($script:cores -lt 1) { $script:cores = 1 }
+
+function Get-Apps {
+  $sum = @{}
+  foreach ($p in (Get-CimInstance -Query $AppWql)) {
+    $n = ($p.Name -replace '#\d+$', '').ToLower()
+    $key = $null
+    foreach ($pat in $AppKeys.Keys) { if ($n -match $pat) { $key = $AppKeys[$pat]; break } }
+    if (-not $key) { continue }
+    if (-not $sum.ContainsKey($key)) { $sum[$key] = @{ k = $key; cpu = 0.0; mem = [int64]0; io = [int64]0; n = 0 } }
+    $sum[$key].cpu += [double]$p.PercentProcessorTime / $script:cores
+    $sum[$key].mem += [int64]$p.WorkingSetPrivate
+    $sum[$key].io  += [int64]$p.IODataBytesPersec
+    $sum[$key].n   += 1
+  }
+  foreach ($v in $sum.Values) { $v.cpu = [math]::Round([math]::Min(100, $v.cpu), 1) }
+  ,@($sum.Values)
+}
+
+$script:static = $null
+$script:staticAt = [DateTime]::MinValue
+
 function Get-Report {
-  $os = Get-CimInstance Win32_OperatingSystem
-  $cpu = (Get-CimInstance Win32_PerfFormattedData_PerfOS_Processor -Filter "Name='_Total'").PercentProcessorTime
+  $os = Get-CimInstance Win32_OperatingSystem -Property TotalVisibleMemorySize, FreePhysicalMemory, Caption, LastBootUpTime
+  $cpu = (Get-CimInstance Win32_PerfFormattedData_PerfOS_Processor -Filter "Name='_Total'" -Property PercentProcessorTime).PercentProcessorTime
   $stats = Get-NetAdapter -Physical | Where-Object Status -eq 'Up' | Get-NetAdapterStatistics
-  @{
-    host      = $env:COMPUTERNAME
-    os        = $os.Caption
-    cpu_name  = (Get-CimInstance Win32_Processor | Select-Object -First 1).Name
-    cores     = [int](Get-CimInstance Win32_ComputerSystem).NumberOfLogicalProcessors
+  $r = @{
     cpu       = [double]$cpu
     mem_total = [int64]$os.TotalVisibleMemorySize * 1024
     mem_used  = ([int64]$os.TotalVisibleMemorySize - [int64]$os.FreePhysicalMemory) * 1024
     rx        = [int64](($stats | Measure-Object -Property ReceivedBytes -Sum).Sum)
     tx        = [int64](($stats | Measure-Object -Property SentBytes -Sum).Sum)
-    uptime    = [int]((Get-Date) - $os.LastBootUpTime).TotalSeconds
-  } | ConvertTo-Json -Compress
+    apps      = Get-Apps
+  }
+  # Feste Angaben (Name, Windows, Prozessor) nur einmal pro Minute mitschicken
+  if (((Get-Date) - $script:staticAt).TotalSeconds -ge 60) {
+    if (-not $script:static) {
+      $script:static = @{
+        host     = $env:COMPUTERNAME
+        os       = $os.Caption
+        cpu_name = (Get-CimInstance Win32_Processor | Select-Object -First 1).Name
+        cores    = [int](Get-CimInstance Win32_ComputerSystem).NumberOfLogicalProcessors
+      }
+    }
+    foreach ($k in $script:static.Keys) { $r[$k] = $script:static[$k] }
+    $r['uptime'] = [int]((Get-Date) - $os.LastBootUpTime).TotalSeconds
+    $script:staticAt = Get-Date
+  }
+  $r | ConvertTo-Json -Compress -Depth 4
 }
 
 while ($true) {
+  $start = Get-Date
   try {
     $json = Get-Report
     try { Send-Report $json }
     catch [Net.WebException] {
       if (-not $script:lax -and ($_.Exception.Status -eq 'TrustFailure' -or $_.Exception.Status -eq 'SecureChannelFailure')) {
         $script:lax = $true; Send-Report $json
-      }
+      } else { throw }
     }
-  } catch { }
-  Start-Sleep -Seconds 60
+  } catch { Start-Sleep -Seconds 5 }   # EarnWatch nicht erreichbar: kurz warten statt jede Sekunde zu versuchen
+  $rest = 1000 - [int]((Get-Date) - $start).TotalMilliseconds
+  if ($rest -gt 50) { Start-Sleep -Milliseconds $rest }
 }

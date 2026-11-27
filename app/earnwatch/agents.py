@@ -25,6 +25,16 @@ NAME_RE = re.compile(r"^[\w .\-äöüÄÖÜß]{1,32}$")
 _seen: dict[str, float] = {}
 _lock = threading.Lock()
 _last_post: dict[str, float] = {}
+_live: dict[str, dict] = {}        # aktuelle Werte je Rechner (nur im Speicher)
+_last_save: dict[str, float] = {}  # wann zuletzt in die Datenbank geschrieben
+MIN_GAP = 0.7                      # höchstens ~1 Meldung pro Sekunde
+# Verdienst-Apps, die der Agent auf dem PC erkennt (Schlüssel -> Plattform in EarnWatch)
+APPS = {"honeygain": ("honeygain", "Honeygain"), "jumptask": ("honeygain_jt", "JumpTask"),
+        "earnapp": ("earnapp", "EarnApp"), "pawns": ("pawns", "Pawns.app"), "bitping": ("bitping", "Bitping"),
+        "earnfm": ("earnfm", "Earn.fm"), "wipter": ("wipter", "Wipter"), "bytelixir": ("bytelixir", "Bytelixir"),
+        "grass": ("grass", "Grass")}
+_app_hist: dict[str, dict[str, list]] = {}   # je Rechner, je App: letzte 5 Min. CPU (nur im Speicher)
+SAVE_EVERY = 60
 
 
 def _list() -> list[dict]:
@@ -88,7 +98,7 @@ def verify(aid: str, headers, body: bytes) -> bool:
     with _lock:
         for k in [k for k, t in _seen.items() if t < now - 2 * SKEW]:
             del _seen[k]
-        if nonce in _seen or len(_seen) > 20000 or now - _last_post.get(aid, 0) < 20:
+        if nonce in _seen or len(_seen) > 50000 or now - _last_post.get(aid, 0) < MIN_GAP:
             return False
         _seen[nonce] = now
         _last_post[aid] = now
@@ -114,7 +124,32 @@ def record(aid: str, body: bytes) -> bool:
         return False
     if not isinstance(d, dict):
         return False
-    now = int(time.time())
+    tnow = time.time()
+    cur = {"t": tnow, "cpu": _num(d.get("cpu"), 0, 100), "mem_used": _num(d.get("mem_used"), 0, 2**50, int),
+           "mem_total": _num(d.get("mem_total"), 1, 2**50, int), "rx": _num(d.get("rx"), 0, 2**62, int),
+           "tx": _num(d.get("tx"), 0, 2**62, int)}
+    prev = _live.get(aid)
+    if prev and 0 < tnow - prev["t"] < 30:
+        dt = tnow - prev["t"]
+        for k, out in (("rx", "down"), ("tx", "up")):
+            cur[out] = ((cur[k] - prev[k]) * 8 / dt) if None not in (cur[k], prev[k]) and cur[k] >= prev[k] else prev.get(out)
+    apps = {}
+    for a in (d.get("apps") or [])[:20] if isinstance(d.get("apps"), list) else []:
+        if not isinstance(a, dict) or a.get("k") not in APPS:
+            continue
+        apps[a["k"]] = {"cpu": _num(a.get("cpu"), 0, 100), "mem": _num(a.get("mem"), 0, 2**44, int),
+                        "io": _num(a.get("io"), 0, 2**40, int), "n": _num(a.get("n"), 0, 999, int)}
+    cur["apps"] = apps if "apps" in d else (prev or {}).get("apps", {})
+    h = _app_hist.setdefault(aid, {})
+    for k, v in cur["apps"].items():
+        lst = h.setdefault(k, [])
+        lst.append((tnow, v["cpu"] or 0.0))
+        del lst[:-300]
+    _live[aid] = cur
+    if tnow - _last_save.get(aid, 0) < SAVE_EVERY:
+        return True   # nur live – Verlauf wird einmal pro Minute gespeichert
+    _last_save[aid] = tnow
+    now = int(tnow)
     p = [now, _num(d.get("cpu"), 0, 100), _num(d.get("mem_used"), 0, 2**50, int), _num(d.get("mem_total"), 1, 2**50, int),
          _num(d.get("rx"), 0, 2**62, int), _num(d.get("tx"), 0, 2**62, int)]
     st = state(aid)
@@ -130,8 +165,9 @@ def record(aid: str, body: bytes) -> bool:
                 st[k] = st.get(k, 0) + p[i] - prev[i]
     pts.append(p)
     st["pts"] = pts[-400:]
-    st["info"] = {"host": _txt(d.get("host"), 40), "os": _txt(d.get("os"), 60), "cpu_name": _txt(d.get("cpu_name"), 60),
-                  "cores": _num(d.get("cores"), 1, 1024, int), "uptime": _num(d.get("uptime"), 0, 10**9, int)}
+    if d.get("host") or not st.get("info"):
+        st["info"] = {"host": _txt(d.get("host"), 40), "os": _txt(d.get("os"), 60), "cpu_name": _txt(d.get("cpu_name"), 60),
+                      "cores": _num(d.get("cores"), 1, 1024, int), "uptime": _num(d.get("uptime"), 0, 10**9, int)}
     st["seen"] = now
     db.set_setting(f"agent_{aid}", json.dumps(st, separators=(",", ":")))
     return True
@@ -162,6 +198,11 @@ def overview() -> list[dict]:
         online = bool(st.get("seen")) and now - st["seen"] < 180
         if rates and online:
             down, up = rates[-1][1], rates[-1][2]
+        lv = _live.get(a["id"])
+        if lv and now - lv["t"] < 10:   # Live-Werte (jede Sekunde) haben Vorrang
+            online = True
+            last = [int(lv["t"]), lv["cpu"], lv["mem_used"], lv["mem_total"], lv["rx"], lv["tx"]]
+            down, up = lv.get("down", down), lv.get("up", up)
         out.append({
             "id": a["id"], "name": a["name"], "online": online, "seen": st.get("seen"),
             "cpu": last[1] if last and online else None,
@@ -220,3 +261,55 @@ WINDOWS_UNINSTALL = (
     "ForEach-Object { Stop-Process -Id $_.ProcessId -Force }\n"
     "Remove-Item \"$([Environment]::GetFolderPath('Startup'))\\EarnWatch-Agent.lnk\", \"$env:LOCALAPPDATA\\EarnWatchAgent\" -Recurse -Force"
 )
+
+
+def live() -> list[dict]:
+    """Kleine JSON-Antwort für die Seite (jede Sekunde abgefragt)."""
+    out = []
+    for o in overview():
+        out.append({"id": o["id"], "online": o["online"],
+                     "cpu": None if o["cpu"] is None else round(o["cpu"], 1),
+                     "mem": None if o["mem_pct"] is None else round(o["mem_pct"], 1),
+                     "mem_txt": f"{fmt_bytes(o['mem_used'])} / {fmt_bytes(o['mem_total'])}",
+                     "down": fmt_bits(o["down"]), "up": fmt_bits(o["up"])})
+    return out
+
+
+def detail(aid: str) -> dict | None:
+    """Alles für die Rechner-Seite: Gesamtwerte + Verbrauch je Verdienst-App."""
+    o = next((x for x in overview() if x["id"] == aid), None)
+    if not o:
+        return None
+    lv = _live.get(aid) or {}
+    fresh = lv and time.time() - lv.get("t", 0) < 10
+    running = (lv.get("apps") or {}) if fresh else {}
+    apps = []
+    for k, (pf, name) in APPS.items():
+        v = running.get(k)
+        apps.append({"k": k, "pf": pf, "name": name, "running": bool(v),
+                     "cpu": v["cpu"] if v else None, "mem": v["mem"] if v else None, "io": v["io"] if v else None,
+                     "hist": [(t, c) for t, c in _app_hist.get(aid, {}).get(k, []) if time.time() - t < 300]})
+    apps.sort(key=lambda a: (not a["running"], -(a["cpu"] or 0)))
+    scale = max([5.0] + [a["cpu"] or 0 for a in apps])   # Balken relativ (mind. 5 %), Zahl bleibt echt
+    for a in apps:
+        a["bar"] = None if a["cpu"] is None else round(100 * a["cpu"] / scale)
+    top = max([a["cpu"] or 0 for a in apps] + [5.0])   # Balken relativ zur hungrigsten App (mind. 5 %)
+    for a in apps:
+        a["bar"] = None if a["cpu"] is None else round(100 * a["cpu"] / top)
+    o["apps"] = apps
+    o["has_apps"] = "apps" in lv
+    return o
+
+
+def live_detail(aid: str) -> dict | None:
+    o = detail(aid)
+    if not o:
+        return None
+    return {"id": aid, "online": o["online"],
+            "cpu": None if o["cpu"] is None else round(o["cpu"], 1),
+            "mem": None if o["mem_pct"] is None else round(o["mem_pct"], 1),
+            "mem_txt": f"{fmt_bytes(o['mem_used'])} / {fmt_bytes(o['mem_total'])}",
+            "down": fmt_bits(o["down"]), "up": fmt_bits(o["up"]),
+            "apps": [{"k": a["k"], "running": a["running"], "cpu": None if a["cpu"] is None else round(a["cpu"], 1), "bar": a["bar"], "bar": a["bar"],
+                      "mem": fmt_bytes(a["mem"]) if a["mem"] is not None else "–",
+                      "io": (fmt_bytes(a["io"]) + "/s") if a["io"] is not None else "–"} for a in o["apps"]]}

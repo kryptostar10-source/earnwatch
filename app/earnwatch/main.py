@@ -82,8 +82,9 @@ CSP = (
 )
 
 
-# Nur Login- und Einstellungsseite dürfen das eigene Passkey-Skript laden (Face ID braucht JavaScript).
-CSP_PASSKEY = CSP.replace("script-src 'none'", "script-src 'self'; connect-src 'self'")
+# Eigene Skripte (Live-Werte der Rechner, Passkey/Face ID) nur von EarnWatch selbst – nie inline, nie fremd.
+CSP = CSP.replace("script-src 'none'", "script-src 'self'; connect-src 'self'")
+CSP_PASSKEY = CSP
 
 
 # Größere Anfragen nur dort, wo Dateien hochgeladen werden (jeweils mit eigener Prüfung im Handler)
@@ -1387,6 +1388,33 @@ async def app_icon(request: Request):
                              "content-security-policy": "default-src 'none'; sandbox"})
 
 
+async def pc_page(request: Request):
+    user = current_user(request)
+    if not user:
+        return redirect("/login" if db.user_count() else "/setup")
+    d = agents.detail(request.path_params["aid"])
+    if not d:
+        return PlainTextResponse("Nicht gefunden", status_code=404)
+    icons_ok = {a["pf"]: icons.available(a["pf"]) for a in d["apps"]}
+    return render(request, "pc.html", {"user": user, "pc": d, "app_icons": icons_ok, "platforms": PLATFORMS, "pc_live": True})
+
+
+async def api_pc(request: Request):
+    if not current_user(request):
+        return JSONResponse({"error": "login"}, status_code=401)
+    d = await run_in_threadpool(agents.live_detail, request.path_params["aid"])
+    if not d:
+        return JSONResponse({"error": "unbekannt"}, status_code=404)
+    return JSONResponse(d, headers={"cache-control": "no-store"})
+
+
+async def api_pcs(request: Request):
+    """Live-Werte der Rechner für die Seite (nur angemeldet, jede Sekunde abgefragt)."""
+    if not current_user(request):
+        return JSONResponse({"error": "login"}, status_code=401)
+    return JSONResponse(await run_in_threadpool(agents.live), headers={"cache-control": "no-store"})
+
+
 async def api_agent(request: Request):
     """Meldung eines Rechner-Agenten (signiert, siehe agents.py). Antwortet ohne Details."""
     ip = client_ip(request)
@@ -1450,6 +1478,9 @@ routes = [
     Route("/api/widget", api_widget),
     Route("/api/mirror", api_mirror),
     Route("/api/agent/{aid:str}", api_agent, methods=["POST"]),
+    Route("/api/pcs", api_pcs),
+    Route("/api/pcs/{aid:str}", api_pc),
+    Route("/pc/{aid:str}", pc_page),
     Mount("/static", StaticFiles(directory=str(BASE / "static")), name="static"),
 ]
 

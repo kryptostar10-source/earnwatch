@@ -86,12 +86,12 @@
     <div class="sidepcs" aria-label="Auslastung der Rechner">
       <div class="sp-head">Rechner</div>
       {% for pc in side_pcs %}
-      <div class="sp{% if not pc.online %} off{% endif %}">
-        <div class="sp-name"><span class="pcdot" aria-hidden="true"></span><b>{{ pc.name }}</b><span class="sp-st">{% if pc.online %}online{% elif pc.seen %}{{ pc.seen|ago }}{% else %}wartet{% endif %}</span></div>
+      <div class="sp{% if not pc.online %} off{% endif %}" data-pc="{{ pc.id }}">
+        <a class="sp-name" href="/pc/{{ pc.id }}"><span class="pcdot" aria-hidden="true"></span><b>{{ pc.name }}</b><span class="sp-st">{% if pc.online %}online{% elif pc.seen %}{{ pc.seen|ago }}{% else %}wartet{% endif %} ›</span></a>
         {% if pc.seen %}
-        <div class="sp-row"><span>CPU</span><span class="pcbar"><i class="w{{ ((pc.cpu or 0) / 5)|round|int * 5 }}"></i></span><b>{{ '%.0f'|format(pc.cpu) ~ ' %' if pc.cpu is not none else '–' }}</b></div>
-        <div class="sp-row"><span>RAM</span><span class="pcbar ram"><i class="w{{ ((pc.mem_pct or 0) / 5)|round|int * 5 }}"></i></span><b>{{ '%.0f'|format(pc.mem_pct) ~ ' %' if pc.mem_pct is not none else '–' }}</b></div>
-        <div class="sp-net"><span>↓ {{ fmt_bits(pc.down) }}</span><span>↑ {{ fmt_bits(pc.up) }}</span></div>
+        <div class="sp-row"><span>CPU</span><span class="pcbar"><i class="w{{ ((pc.cpu or 0) / 5)|round|int * 5 }}" data-k="cpubar"></i></span><b data-k="cpu">{{ '%.0f'|format(pc.cpu) ~ ' %' if pc.cpu is not none else '–' }}</b></div>
+        <div class="sp-row"><span>RAM</span><span class="pcbar ram"><i class="w{{ ((pc.mem_pct or 0) / 5)|round|int * 5 }}" data-k="membar"></i></span><b data-k="mem">{{ '%.0f'|format(pc.mem_pct) ~ ' %' if pc.mem_pct is not none else '–' }}</b></div>
+        <div class="sp-net"><span>↓ <span data-k="down">{{ fmt_bits(pc.down) }}</span></span><span>↑ <span data-k="up">{{ fmt_bits(pc.up) }}</span></span></div>
         {% endif %}
       </div>
       {% endfor %}
@@ -105,6 +105,7 @@
     </div>
   </nav>
   <main class="content">
+    {% if side_pcs or pc_live %}<script src="/static/live-pcs.js" defer></script>{% endif %}
     <div class="topbar" aria-hidden="true">
       <span class="tb-user"><span class="tb-av">{{ (user.username or '?')[:1]|upper }}</span>Willkommen, {{ user.username }}</span>
       <span class="tb-mid"><span class="livedot"></span>{% if status.next_in is none %}Erster Abruf läuft gleich{% elif status.next_in < 1 %}Nächster Abruf gleich{% else %}Nächster Abruf in {{ status.next_in }} Min{% endif %}{% if status.containers %} · Container {{ status.containers.up }}/{{ status.containers.total }}{% endif %}</span>
