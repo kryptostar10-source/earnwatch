@@ -4,8 +4,12 @@ name: EarnWatch
 tagline: All your passive income apps in one secure dashboard
 icon: https://raw.githubusercontent.com/kryptostar10-source/earnwatch/main/docs/umbrel/icon.svg
 category: finance
-version: "1.8.0"
+version: "1.8.1"
 port: 3925
+path: ""
+dependencies: []
+defaultUsername: ""
+defaultPassword: ""
 description: >-
   EarnWatch tracks your balances on Honeygain (incl. JumpTask), EarnApp, Grass, Bytelixir,
   Pawns.app, Earn.fm, Wipter and Duino-Coin and shows what you earn today, this week,
@@ -33,5 +37,5 @@ gallery:
   - https://raw.githubusercontent.com/kryptostar10-source/earnwatch/main/docs/screenshots/uebersicht-dot.jpg
   - https://raw.githubusercontent.com/kryptostar10-source/earnwatch/main/docs/screenshots/plattform-seite.jpg
 releaseNotes: >-
-  Platforms are now grouped into Bandwidth Sharing and Mining.
-  Hidden platforms get their own "Ausgeblendet" section in the sidebar, where you can bring them back with one click.
+  Fix for umbrelOS 2.0: complete app manifest so the app opens from the dashboard.
+  Every platform can now be hidden, also ones you never set up.
