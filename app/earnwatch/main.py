@@ -31,7 +31,7 @@ from starlette.templating import Jinja2Templates
 from markupsafe import Markup
 
 from . import achievements, agents, auth, backup, icons, mirror, wallpaper, webauthn, charts, config, db, events, fx, notify, stats, totp
-from .collectors import PLATFORMS
+from .collectors import CATEGORIES, PLATFORMS
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 log = logging.getLogger("earnwatch")
@@ -179,6 +179,8 @@ WALLPAPERS = {"std": "Standard", "sonoma": "Sonoma", "sunset": "Abendrot", "ocea
 def render(request: Request, name: str, ctx: dict | None = None, status: int = 200):
     ctx = dict(ctx or {})
     ctx["csrf"] = auth.csrf_token(request.session)
+    ctx["categories"] = CATEGORIES
+    ctx["hidden_n"] = len(db.hidden_platforms()) if ctx.get("user") else 0
     ctx.setdefault("user", None)
     ctx["flash"] = request.session.pop("flash", None)
     # Nur bekannte Werte durchlassen – auch wenn jemand die Datenbank direkt verändert hätte
@@ -897,6 +899,33 @@ async def achievements_page(request: Request):
     return render(request, "achievements.html", {"user": user, "ach": achievements.overview(stats.compute())})
 
 
+async def hidden_page(request: Request):
+    user = current_user(request)
+    if not user:
+        return redirect("/login" if db.user_count() else "/setup")
+    cats = dict(CATEGORIES)
+    pfs = sorted((pf for pf in db.hidden_platforms() if pf in PLATFORMS), key=lambda x: PLATFORMS[x]["name"])
+    units = {}
+    for pf in pfs:   # Einstellungen VOR dem Datenbank-Block lesen (eine Verbindung zur Zeit)
+        unit = PLATFORMS[pf]["unit"]
+        if unit == "COIN":
+            try:
+                unit = str(json.loads(db.get_setting(f"info_{pf}", "{}")).get("coin") or "COIN")[:12]
+            except ValueError:
+                unit = "COIN"
+        units[pf] = unit
+    items = []
+    with db.conn() as cx:
+        for pf in pfs:
+            meta = PLATFORMS[pf]
+            row = cx.execute("SELECT ts, balance FROM snapshots WHERE platform=? ORDER BY ts DESC LIMIT 1", (pf,)).fetchone()
+            n = cx.execute("SELECT COUNT(*) FROM snapshots WHERE platform=?", (pf,)).fetchone()[0]
+            items.append({"id": pf, "name": meta["name"], "short": meta["short"], "color": meta["color"],
+                          "cat": cats.get(meta.get("cat", "bandwidth"), ""), "unit": units[pf],
+                          "balance": row[1] if row else None, "ts": row[0] if row else None, "points": n})
+    return render(request, "hidden.html", {"user": user, "items": items})
+
+
 async def collect_now(request: Request):
     global _last_manual
     if not current_user(request):
@@ -1105,7 +1134,8 @@ async def settings_save(request: Request):
             db.set_hidden(pf, hide)
             flash(request, f"{PLATFORMS[pf]['name']} " + ("ausgeblendet – wird nicht mehr abgerufen und nirgends angezeigt. Daten bleiben gespeichert."
                                                        if hide else "wieder eingeblendet."))
-            return redirect(f"/settings#{pf}")
+            return redirect("/ausgeblendet" if form.get("back") == "/ausgeblendet" and db.hidden_platforms()
+                            else f"/settings#{pf}")
     elif what == "delete":
         pf = form.get("platform", "")
         if pf in PLATFORMS:
@@ -1468,6 +1498,7 @@ routes = [
     Route("/2fa/{action:str}", twofa_manage, methods=["POST"]),
     Route("/p/{pf:str}", platform_page),
     Route("/erfolge", achievements_page),
+    Route("/ausgeblendet", hidden_page),
     Route("/passkey/{step:str}", passkey_api, methods=["POST"]),
     Route("/collect", collect_now, methods=["POST"]),
     Route("/settings", settings_page),

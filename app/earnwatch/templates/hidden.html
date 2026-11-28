@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}Ausgeblendet · EarnWatch{% endblock %}
+{% block content %}
+<header class="pagehead">
+  <div>
+    <div class="date">Werden nicht mehr abgerufen und nirgends angezeigt – die Daten bleiben gespeichert</div>
+    <h1>Ausgeblendet</h1>
+  </div>
+</header>
+{% if items %}
+<div class="grid3">
+  {% for p in items %}
+  <section class="card sm hidcard">
+    <header>
+      <span class="badge" data-pf="{{ p.id }}">{{ p.short }}</span>
+      <div class="ttl"><h2>{{ p.name }}</h2><span class="muted small">{{ p.cat }}</span></div>
+      <span class="pill">ausgeblendet</span>
+    </header>
+    <dl class="hidstats">
+      <div><dt>Letzter Stand</dt><dd>{{ amount(p.balance, p.unit) if p.balance is not none else '–' }}</dd></div>
+      <div><dt>Zuletzt abgerufen</dt><dd>{{ p.ts|ago if p.ts else 'nie' }}</dd></div>
+      <div><dt>Messwerte</dt><dd>{{ p.points }}</dd></div>
+    </dl>
+    <form method="post" action="/settings/visibility">
+      <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="platform" value="{{ p.id }}">
+      <input type="hidden" name="hide" value="0"><input type="hidden" name="back" value="/ausgeblendet">
+      <button class="btn primary sm">Wieder einblenden</button>
+    </form>
+  </section>
+  {% endfor %}
+</div>
+{% else %}
+<section class="card"><p class="muted">Nichts ausgeblendet. In den <a href="/settings">Einstellungen</a> kannst du jede Plattform mit „Ausblenden“ hierher verschieben.</p></section>
+{% endif %}
+{% endblock %}

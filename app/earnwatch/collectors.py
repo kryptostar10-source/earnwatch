@@ -806,8 +806,12 @@ def collect_earnfm(creds: dict) -> Result:
 # mit abgerufen; None = kein Geldwert (Punkte).
 # on_drop: was ein sinkender Stand bedeutet: "payout" (Auszahlung) oder
 # "reset" (neue Epoche beginnt bei 0, z. B. Grass).
+# Gruppen für Einstellungen und Übersicht (Reihenfolge = Anzeige)
+CATEGORIES = [("bandwidth", "Bandwidth Sharing"), ("mining", "Mining")]
+
 PLATFORMS = {
     "honeygain": {
+        "cat": "bandwidth",
         "name": "Honeygain", "color": "#F5A623", "short": "HG", "unit": "USD", "usd": True, "on_drop": "payout",
         "collect": collect_honeygain, "dashboard": "https://dashboard.honeygain.com/", "min_payout": 20.0,
         "fields": [
@@ -817,6 +821,7 @@ PLATFORMS = {
         "hint": "Gleiche Daten wie auf dashboard.honeygain.com. Bei Google/Apple-Login vorher ein Passwort setzen.",
     },
     "honeygain_jt": {
+        "cat": "bandwidth",
         "name": "Honeygain (JumpTask)", "color": "#4F8CFF", "short": "JT", "unit": "USD", "usd": True, "on_drop": "payout",
         "collect": collect_honeygain_jt, "fallback_creds": "honeygain", "lifetime": True,
         "dashboard": "https://app.jumptask.io/", "min_payout": None,
@@ -827,6 +832,7 @@ PLATFORMS = {
         "hint": "Eigener Honeygain-Login für das Konto im JumpTask-Modus. Leer lassen, wenn du nur EIN Honeygain-Konto hast – dann wird der normale Honeygain-Zugang benutzt.",
     },
     "earnapp": {
+        "cat": "bandwidth",
         "name": "EarnApp", "color": "#34C38F", "short": "EA", "unit": "USD", "usd": True, "on_drop": "payout",
         "collect": collect_earnapp, "dashboard": "https://earnapp.com/dashboard", "min_payout": 10.0,
         "fields": [
@@ -852,6 +858,7 @@ PLATFORMS = {
         },
     },
     "grass": {
+        "cat": "bandwidth",
         "name": "Grass", "color": "#86EFAC", "short": "GR", "unit": "Punkte", "usd": None, "on_drop": "reset",
         "collect": collect_grass, "dashboard": "https://app.grass.io/dashboard", "min_payout": None,
         "fields": [
@@ -860,6 +867,7 @@ PLATFORMS = {
         "hint": "app.grass.io einloggen → F12 → Anwendung → Lokaler Speicher → https://app.grass.io → Wert von 'accessToken' (bzw. 'token') kopieren. Grass zahlt Punkte, keinen festen Dollarbetrag.",
     },
     "bytelixir": {
+        "cat": "bandwidth",
         "name": "Bytelixir", "color": "#A78BFA", "short": "BX", "unit": "USD", "usd": True, "on_drop": "payout",
         "collect": collect_bytelixir, "dashboard": "https://dash.bytelixir.com/", "min_payout": None,
         "fields": [
@@ -870,6 +878,7 @@ PLATFORMS = {
         "hint": "dash.bytelixir.com mit 'Remember Me' einloggen → F12 → Anwendung → Cookies → https://dash.bytelixir.com → die drei Werte kopieren.",
     },
     "duinocoin": {
+        "cat": "mining",
         "name": "Duino-Coin", "color": "#FB923C", "short": "DC", "unit": "DUCO", "usd": "price", "on_drop": "payout",
         "collect": collect_duinocoin, "dashboard": "https://wallet.duinocoin.com/", "min_payout": None,
         "fields": [
@@ -878,6 +887,7 @@ PLATFORMS = {
         "hint": "Nur der Benutzername – Duino-Coin-Kontostände sind öffentlich, es wird kein Passwort gebraucht. Zeigt auch deine aktiven Miner (z. B. ESP32) und die Hashrate.",
     },
     "digibyte": {
+        "cat": "mining",
         "name": "DigiByte (HMPool)", "color": "#2563EB", "short": "DG", "unit": "DGB", "usd": "price", "on_drop": "payout",
         "collect": collect_digibyte, "dashboard": "https://digi.hmpool.io/", "min_payout": None,
         "fields": [
@@ -886,6 +896,7 @@ PLATFORMS = {
         "hint": "Nur deine DGB-Adresse, mit der du bei digi.hmpool.io minst – die Pool-Daten sind öffentlich, kein Passwort nötig. Zeigt Guthaben, Hashrate, Miner, Shares und Auszahlungen.",
     },
     "bitping": {
+        "cat": "bandwidth",
         "name": "Bitping", "color": "#8B5CF6", "short": "BP", "unit": "USD", "usd": True, "on_drop": "payout",
         "collect": collect_bitping, "dashboard": "https://nodes.bitping.com/dashboard", "min_payout": None,
         "fields": [
@@ -912,6 +923,7 @@ PLATFORMS = {
         },
     },
     "unmineable": {
+        "cat": "mining",
         "name": "unMineable", "color": "#F59E0B", "short": "UM", "unit": "COIN", "usd": "price", "on_drop": "payout",
         "collect": collect_unmineable, "dashboard": "https://unmineable.com/", "min_payout": None,
         "fields": [
@@ -928,6 +940,7 @@ PLATFORMS = {
         "hint": "Aufbau im Miner: COIN:ADRESSE.WORKER – der Worker-Name (z. B. Gaming-PC) ist frei wählbar und erscheint hier später als eigener Miner. Bei jedem Rechner denselben Coin und dieselbe Adresse, nur einen anderen Worker-Namen. unMineable-Daten sind öffentlich – kein Passwort nötig.",
     },
     "pawns": {
+        "cat": "bandwidth",
         "name": "Pawns.app", "color": "#F472B6", "short": "PA", "unit": "USD", "usd": True, "on_drop": "payout",
         "collect": collect_pawns, "dashboard": "https://dashboard.pawns.app/", "min_payout": 5.0,
         "fields": [
@@ -937,6 +950,7 @@ PLATFORMS = {
         "hint": "Gleiche Daten wie auf pawns.app. Bei Google-Login vorher ein Passwort setzen.",
     },
     "earnfm": {
+        "cat": "bandwidth",
         "name": "Earn.fm", "color": "#22D3EE", "short": "FM", "unit": "USD", "usd": True, "on_drop": "payout",
         "collect": collect_earnfm, "dashboard": "https://app.earn.fm/", "min_payout": None,
         "fields": [
@@ -946,6 +960,7 @@ PLATFORMS = {
         "hint": "Gleiche Daten wie auf app.earn.fm (Login mit E-Mail und Passwort).",
     },
     "wipter": {
+        "cat": "bandwidth",
         "name": "Wipter", "color": "#FACC15", "short": "WI", "unit": "USD", "usd": True, "on_drop": "payout",
         "collect": None, "manual": True, "dashboard": "https://wipter.com/", "min_payout": None,
         "fields": [

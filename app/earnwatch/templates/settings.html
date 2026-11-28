@@ -24,8 +24,14 @@
 {% else %}
 <section>
   <div class="cardhead sectionhead"><h2>Plattformen</h2><span class="small muted">Zum Ändern einfach neu eingeben</span></div>
+  {% if hidden_n %}<a class="hiddenlink" href="/ausgeblendet">{{ hidden_n }} ausgeblendet – im Fach „Ausgeblendet“ ›</a>{% endif %}
+  {% for gid, gname in categories %}
+  {% set gitems = platforms.items()|selectattr('1.fields')|list %}
+  {% set ns = namespace(n=0) %}{% for pf, meta in gitems %}{% if (gid == '_hidden' and pf in hidden) or (gid != '_hidden' and meta.cat == gid and pf not in hidden) %}{% set ns.n = ns.n + 1 %}{% endif %}{% endfor %}
+  {% if ns.n %}
+  <div class="cathead{% if gid == '_hidden' %} cathidden{% endif %}"><h3>{{ gname }}</h3><span class="muted small">{{ ns.n }}{% if gid == '_hidden' %} · laufen nicht mehr mit, Daten bleiben erhalten{% endif %}</span></div>
   <div class="grid3">
-  {% for pf, meta in platforms.items() if meta.fields %}
+  {% for pf, meta in gitems if (gid == '_hidden' and pf in hidden) or (gid != '_hidden' and meta.cat == gid and pf not in hidden) %}
   <section class="card sm setcard{% if pf in hidden %} ishidden{% endif %}" id="{{ pf }}">
     <header>
       <span class="badge" data-pf="{{ pf }}">{{ meta.short }}</span>
@@ -83,6 +89,8 @@
   </section>
   {% endfor %}
   </div>
+  {% endif %}
+  {% endfor %}
 </section>
 {% endif %}
 

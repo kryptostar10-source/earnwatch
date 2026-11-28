@@ -209,7 +209,7 @@ def compute(view: str = "day", period: str = "week") -> dict:
         fac = usd_factor(pf)
         bal = pts[-1][1] if pts else None
         p = {
-            "id": pf, "name": meta["name"], "color": meta["color"], "unit": meta["unit"], "short": meta["short"],
+            "id": pf, "cat": meta.get("cat", "bandwidth"), "name": meta["name"], "color": meta["color"], "unit": meta["unit"], "short": meta["short"],
             "dashboard": meta["dashboard"],
             "configured": pf in configured or (meta.get("fallback_creds") in configured and bool(pts))
                           or (bool(meta.get("manual")) and bool(pts)),
