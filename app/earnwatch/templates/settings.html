@@ -58,7 +58,7 @@
     <form method="post" action="/settings/{{ pf }}" autocomplete="off">
       <input type="hidden" name="csrf" value="{{ csrf }}">
       {% for f in meta.fields %}
-      <label>{{ f.label }}<input name="{{ f.key }}" type="{{ f.type }}" {% if meta.manual %}inputmode="decimal"{% endif %} {% if f.required %}required{% endif %} maxlength="6000" {% if f.type == 'password' %}autocomplete="new-password"{% endif %} spellcheck="false"></label>
+      <label>{{ f.label }}<input name="{{ f.key }}" type="{{ f.type }}" {% if meta.manual %}inputmode="decimal"{% endif %} {% if f.required %}required{% endif %} maxlength="6000" {% if f.type == 'password' %}autocomplete="new-password"{% endif %} spellcheck="false"{% if f.placeholder %} placeholder="{{ f.placeholder }}"{% endif %}></label>
       {% endfor %}
       <div class="actions">
         <button class="btn primary sm">{{ 'Eintragen' if meta.manual else 'Speichern' }}</button>
@@ -79,6 +79,7 @@
       <button class="btn danger sm">Zugang löschen</button>
     </form>{% endif %}
     {% if not acc %}<p class="hint">{{ meta.hint }}</p>{% endif %}
+    {% if meta.example %}<dl class="exbox">{% for lbl, val in meta.example %}<dt>{{ lbl }}</dt><dd class="mono">{{ val }}</dd>{% endfor %}</dl>{% endif %}
   </section>
   {% endfor %}
   </div>

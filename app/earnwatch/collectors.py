@@ -649,6 +649,12 @@ def _f(v) -> float:
 
 def collect_unmineable(creds: dict) -> Result:
     addr, coin = creds.get("address", "").strip(), creds.get("coin", "").strip().upper()
+    # Falls die ganze Miner-Zeile eingefügt wurde (COIN:ADRESSE.WORKER#CODE): nur die Adresse nehmen
+    addr = addr.split("#", 1)[0]
+    if ":" in addr:
+        pre, addr = addr.split(":", 1)
+        coin = coin or pre.strip().upper()
+    addr = addr.split(".", 1)[0].strip()
     if not _UNM_ADDR.match(addr) or not _UNM_COIN.match(coin):
         return Result("unmineable", None, "Bitte Wallet-Adresse und Coin (z. B. SHIB, DOGE, XMR) eintragen")
     op = _opener()
@@ -909,10 +915,17 @@ PLATFORMS = {
         "name": "unMineable", "color": "#F59E0B", "short": "UM", "unit": "COIN", "usd": "price", "on_drop": "payout",
         "collect": collect_unmineable, "dashboard": "https://unmineable.com/", "min_payout": None,
         "fields": [
-            {"key": "coin", "label": "Coin (z. B. SHIB, DOGE, XMR)", "type": "text", "required": True},
-            {"key": "address", "label": "Wallet-Adresse", "type": "text", "required": True},
+            {"key": "coin", "label": "Coin (z. B. SHIB, DOGE, XMR)", "type": "text", "required": False, "placeholder": "SHIB"},
+            {"key": "address", "label": "Wallet-Adresse", "type": "text", "required": True,
+             "placeholder": "0x1234…abcd"},
         ],
-        "hint": "Dieselbe Adresse und derselbe Coin wie im Miner (COIN:ADRESSE.WORKER). unMineable-Daten sind öffentlich – kein Passwort nötig.",
+        "example": [
+            ("So steht es im Miner (Benutzername / Wallet)", "SHIB:0x1234567890abcdef1234567890abcdef12345678.Gaming-PC"),
+            ("Mit Empfehlungscode (spart Gebühr)", "SHIB:0x1234567890abcdef1234567890abcdef12345678.Gaming-PC#abcd-1234"),
+            ("Hier eintragen → Coin", "SHIB"),
+            ("Hier eintragen → Wallet-Adresse", "0x1234567890abcdef1234567890abcdef12345678"),
+        ],
+        "hint": "Aufbau im Miner: COIN:ADRESSE.WORKER – der Worker-Name (z. B. Gaming-PC) ist frei wählbar und erscheint hier später als eigener Miner. Bei jedem Rechner denselben Coin und dieselbe Adresse, nur einen anderen Worker-Namen. unMineable-Daten sind öffentlich – kein Passwort nötig.",
     },
     "pawns": {
         "name": "Pawns.app", "color": "#F472B6", "short": "PA", "unit": "USD", "usd": True, "on_drop": "payout",

@@ -4,7 +4,7 @@ name: EarnWatch
 tagline: All your passive income apps in one secure dashboard
 icon: https://raw.githubusercontent.com/kryptostar10-source/earnwatch/main/docs/umbrel/icon.svg
 category: finance
-version: "1.7.0"
+version: "1.7.1"
 port: 3925
 description: >-
   EarnWatch tracks your balances on Honeygain (incl. JumpTask), EarnApp, Grass, Bytelixir,
@@ -33,4 +33,4 @@ gallery:
   - https://raw.githubusercontent.com/kryptostar10-source/earnwatch/main/docs/screenshots/uebersicht-dot.jpg
   - https://raw.githubusercontent.com/kryptostar10-source/earnwatch/main/docs/screenshots/plattform-seite.jpg
 releaseNotes: >-
-  New platform: unMineable (mining pool). Enter coin and wallet address to see balance, hashrate per miner, rewards and payout progress.
+  unMineable setup now shows examples for coin, wallet address and worker name. You can also paste the whole miner line (COIN:ADDRESS.WORKER).
